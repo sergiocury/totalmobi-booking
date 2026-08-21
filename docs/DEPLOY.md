@@ -14,7 +14,7 @@ fora do editor:
 2. Projeto na Vercel, com as variáveis de ambiente
 3. O subdomínio a apontar para lá
 4. **O agendador da fila** — sem ele os lembretes não saem
-5. Chave do Resend, para os emails saírem mesmo
+5. Chave do Brevo, para os emails saírem mesmo
 
 ---
 
@@ -58,8 +58,8 @@ WHATSAPP_APP_SECRET
 WHATSAPP_VERIFY_TOKEN
 WHATSAPP_TOKEN_KEY
 WHATSAPP_TOKEN_KEY_ID
-RESEND_API_KEY        ← ainda por obter
-EMAIL_FROM            ← ainda por obter
+EMAIL_FROM            ← ex.: marcacoes@totalmobi.pt
+BREVO_API_KEY         ← do painel do Brevo (xkeysib-…)
 ```
 
 ⚠️ **O `NEXT_PUBLIC_APP_URL` tem de ser o URL final.** É a partir dele que se
@@ -132,15 +132,62 @@ não está a drenar.
 
 ---
 
-## 5. Resend
+## 5. Email — Brevo
 
-Sem `RESEND_API_KEY` e `EMAIL_FROM`, os emails vão para a consola do servidor em
-vez do destinatário — com aviso, mas ninguém os recebe.
+Sem chave de fornecedor, os emails vão para a consola do servidor em vez do
+destinatário. Com aviso, mas ninguém os recebe.
 
-1. Conta em `resend.com`, chave (`re_…`)
-2. **Verificar um domínio** (SPF e DKIM) — sugestão: um subdomínio só de envio,
-   para que um problema de reputação não afete o correio principal da Totalmobi
-3. As duas variáveis na Vercel
+**Usa-se o Brevo**, porque o `totalmobi.pt` **já lá está verificado** e a
+funcionar noutros projetos do Sérgio:
+
+```
+v=spf1 +a +mx +ip4:… include:relay.thundermail.uk include:spf.brevo.com ~all
+brevo1._domainkey.totalmobi.pt  CNAME  b1.totalmobi-pt.dkim.brevo.com
+brevo2._domainkey.totalmobi.pt  CNAME  b2.totalmobi-pt.dkim.brevo.com
+_dmarc.totalmobi.pt             TXT    v=DMARC1; p=none; rua=…@dmarc.brevo.com
+```
+
+**Não é preciso mexer no DNS.** Só duas variáveis:
+
+```
+EMAIL_FROM=marcacoes@totalmobi.pt
+BREVO_API_KEY=xkeysib-…
+```
+
+### Porque não o Resend
+
+Tentou-se. O Resend exige um **TXT** em `resend._domainkey.<domínio>`, e o
+painel do one.com recusa-o com "Ocorreu um erro inesperado" e uma referência
+opaca — em `booking.totalmobi.pt` e também em `totalmobi.pt`.
+
+O padrão do que o painel aceita e recusa é claro:
+
+| Registo | Forma | Resultado |
+|---|---|---|
+| `_dmarc.totalmobi.pt` | TXT, underscore na 1.ª etiqueta | ✅ existe |
+| `brevo1._domainkey.totalmobi.pt` | CNAME, underscore no meio | ✅ existe |
+| `resend._domainkey.totalmobi.pt` | **TXT, underscore no meio** | ❌ erro |
+
+É um defeito do painel do one.com, não uma configuração errada. O
+`ResendEmailProvider` fica no código e funciona — basta pôr `RESEND_API_KEY` e
+`EMAIL_PROVIDER=resend` no dia em que o DNS mudar de casa ou o suporte deles
+resolver.
+
+### O que se perde ao usar o Brevo
+
+O Resend garante idempotência por `Idempotency-Key`: se o envio correr bem e a
+escrita do `sent_at` falhar logo a seguir, a repetição não manda o email duas
+vezes. **O Brevo não documenta essa garantia.**
+
+A proteção principal mantém-se — o índice único em `notification_jobs` impede o
+mesmo aviso de ser planeado duas vezes. O que se perde é a rede de segurança
+para uma falha rara e estreita. Fica registado por ser uma diferença real.
+
+### Reputação
+
+O correio da empresa e os emails de marcações passam a sair do mesmo domínio. O
+Brevo e o Resend recomendam separar por subdomínio, e é reversível quando
+quiser — mas exige o registo DKIM que o painel hoje não aceita.
 
 ---
 
@@ -165,5 +212,5 @@ Por esta ordem, e cada um responde a uma coisa diferente:
 | Marcar uma consulta a sério | browser | o motor, a transação e o token de gestão |
 | O link `/m/<token>` da confirmação | browser | a gestão sem conta |
 | `booking.estado_do_agendador()` | SQL | o cron está a correr e a fila drena |
-| O email chegou | caixa de correio | o Resend e o domínio verificado |
+| O email chegou | caixa de correio | o Brevo e o domínio verificado |
 | `/api/webhooks/whatsapp?hub.mode=…` | curl | o webhook responde ao desafio da Meta |

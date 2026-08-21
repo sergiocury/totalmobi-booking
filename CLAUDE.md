@@ -742,6 +742,27 @@ Publicar Edge Functions exigiria o Docker, que não arranca nesta máquina.
 constante, agendável por Vercel Cron. Sem `NOTIFICATIONS_CRON_SECRET` devolve
 503; com segredo errado, 401.
 
+### Email: o Brevo, porque o DNS já o tem
+
+O `totalmobi.pt` **já está verificado no Brevo** — SPF, DKIM em
+`brevo1._domainkey` e DMARC — e a funcionar noutros projetos do Sérgio. Zero
+registos novos a criar.
+
+O Resend exigia um **TXT** em `resend._domainkey`, e o painel do one.com
+recusa-o com "erro inesperado". O padrão do que ele aceita é revelador: TXT com
+underscore na 1.ª etiqueta (`_dmarc`) passa; CNAME com underscore no meio
+(`brevo1._domainkey`) passa; **TXT com underscore no meio falha**. É um defeito
+do painel, não uma configuração errada.
+
+**Foi para isto que o `EmailProvider` é uma interface desde o M2.** Trocar de
+fornecedor foi escrever uma classe. O `ResendEmailProvider` fica lá e funciona —
+basta `EMAIL_PROVIDER=resend` no dia em que o DNS mudar de casa.
+
+O que se perde: o Resend garante idempotência por `Idempotency-Key`; o Brevo
+**não documenta essa garantia**. A proteção principal mantém-se (o índice único
+em `notification_jobs`); perde-se a rede de segurança para o caso raro de o
+envio correr bem e a escrita do estado falhar a seguir.
+
 ### Resend: API verificada, não deduzida
 
 `POST https://api.resend.com/emails`, `Authorization: Bearer re_…`,

@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createServiceClient } from '@totalmobi/database/server';
 import {
+  BrevoEmailProvider,
   ConsoleEmailProvider,
   ResendEmailProvider,
   comporEmail,
@@ -48,18 +49,31 @@ function segredoValido(recebido: string | null, esperado: string): boolean {
   return diferenca === 0;
 }
 
+/**
+ * Qual fornecedor de email.
+ *
+ * A ordem não é arbitrária: o **Brevo** vem primeiro porque o `totalmobi.pt`
+ * já está verificado lá — SPF, DKIM e DMARC configurados e a funcionar noutros
+ * projetos. O Resend fica como alternativa, para o dia em que fizer sentido
+ * separar a reputação do email de marcações da do correio da empresa.
+ *
+ * `EMAIL_PROVIDER` força a escolha quando ambas as chaves existirem.
+ */
 function escolherProvider(): EmailProvider {
-  const chave = process.env.RESEND_API_KEY;
   const remetente = process.env.EMAIL_FROM;
+  const brevo = process.env.BREVO_API_KEY;
+  const resend = process.env.RESEND_API_KEY;
+  const preferido = process.env.EMAIL_PROVIDER;
 
-  if (chave && remetente) {
-    return new ResendEmailProvider(chave, remetente);
+  if (remetente) {
+    if (brevo && preferido !== 'resend') return new BrevoEmailProvider(brevo, remetente);
+    if (resend) return new ResendEmailProvider(resend, remetente);
   }
 
   // Sem chave configurada, escreve na consola em vez de enviar. **Nunca**
   // silenciosamente: um provider mudo em produção seria um desastre calado.
   console.warn(
-    '[notificações] RESEND_API_KEY ou EMAIL_FROM em falta — os emails vão para a consola, não para o destinatário.',
+    '[notificações] BREVO_API_KEY/RESEND_API_KEY ou EMAIL_FROM em falta — os emails vão para a consola, não para o destinatário.',
   );
   return new ConsoleEmailProvider();
 }
