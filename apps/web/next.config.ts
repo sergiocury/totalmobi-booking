@@ -7,8 +7,21 @@ const config: NextConfig = {
    * Os pacotes do monorepo são publicados como TypeScript, sem passo de build.
    * O Next compila-os junto com a app — é o que mantém o ciclo de edição rápido
    * e evita ter de reconstruir `packages/*` a cada alteração.
+   *
+   * **A lista tem de conter todos os que a app importa.** Ficou três pacotes
+   * atrás durante os M7, M13 e M14 — o `availability`, o `whatsapp` e o
+   * `conversation` foram criados e nunca acrescentados aqui. Não partiu nada
+   * localmente, o que é precisamente o que torna este esquecimento perigoso.
    */
-  transpilePackages: ['@totalmobi/shared', '@totalmobi/database', '@totalmobi/notifications', '@totalmobi/ui'],
+  transpilePackages: [
+    '@totalmobi/availability',
+    '@totalmobi/conversation',
+    '@totalmobi/database',
+    '@totalmobi/notifications',
+    '@totalmobi/shared',
+    '@totalmobi/ui',
+    '@totalmobi/whatsapp',
+  ],
 
   typedRoutes: true,
 
