@@ -1,0 +1,53 @@
+# Configuração local do Supabase — Totalmobi Booking
+# Só afeta o ambiente de desenvolvimento (`supabase start`).
+# O projeto remoto é ulpsaxhocvezcohbndpz, partilhado com o Totalmobi CMS.
+
+project_id = "totalmobi-booking"
+
+[api]
+enabled = true
+port = 54321
+# O schema `booking` tem de estar exposto para o cliente JS lhe aceder.
+# ⚠️ No projeto REMOTO isto NÃO se configura por aqui nem pela Management API:
+# só um Save em Dashboard → Integrations → Data API → Settings → Exposed schemas
+# reinicia o PostgREST. Ver DATABASE.md, secção 18.
+schemas = ["public", "booking"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+# Igualar a produção: o remoto corre PostgreSQL 17.6.
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+jwt_expiry = 3600
+enable_signup = true
+enable_confirmations = false
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
+
+[analytics]
+enabled = false

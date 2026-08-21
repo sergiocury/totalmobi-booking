@@ -1,0 +1,22 @@
+{
+  "name": "@totalmobi/database",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Clientes Supabase, tipos gerados e repositórios. É o único pacote, além de apps/web, que sabe que existe um Supabase.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/database.types.ts",
+    "./server": "./src/client/service.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.4",
+    "@supabase/supabase-js": "^2.112.3",
+    "@totalmobi/availability": "*",
+    "@totalmobi/shared": "*",
+    "server-only": "^0.0.1"
+  }
+}

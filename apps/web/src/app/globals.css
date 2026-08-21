@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+@import '@totalmobi/ui/tokens.css';
+
+/**
+ * Os tokens vivem em packages/ui/src/tokens.css — este ficheiro só os importa.
+ *
+ * Nada de cores aqui. Uma cor escrita neste ficheiro escapa ao design system,
+ * quebra o modo escuro e quebra o white-label sem dar erro nenhum.
+ */
+
+/* O Tailwind precisa de ver as classes usadas dentro do packages/ui, que vive
+   fora da árvore de ficheiros da app. */
+@source '../../../../packages/ui/src';

@@ -1,0 +1,46 @@
+{
+  "name": "totalmobi-booking",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Totalmobi Booking — SaaS multi-tenant de agendamento omnichannel",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@totalmobi/web",
+    "build": "npm run build --workspace=@totalmobi/web",
+    "start": "npm run start --workspace=@totalmobi/web",
+    "typecheck": "tsc --build --force",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,css}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:db": "vitest run --project database",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "db:start": "supabase start",
+    "db:reset": "supabase db reset",
+    "db:types": "supabase gen types typescript --local --schema booking > packages/database/src/types/.generated.ts && node scripts/finish-types.mjs",
+    "verify": "npm run typecheck && npm run lint && npm run check:sql && npm run test",
+    "check:sql": "node scripts/check-sql.mjs",
+    "setup:env": "node -e \"const f=require('fs');const d='apps/web/.env.local';if(f.existsSync(d)){console.log(d+' ja existe, nao foi tocado.')}else{f.copyFileSync('.env.example',d);console.log('criado '+d+' — preencher agora.')}\"",
+    "db:types:remote": "supabase gen types typescript --project-id ulpsaxhocvezcohbndpz --schema booking > packages/database/src/types/.generated.ts && node scripts/finish-types.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.15.0",
+    "eslint": "^9.39.0",
+    "globals": "^17.11.0",
+    "libpg-query": "^17.7.4",
+    "prettier": "^3.6.2",
+    "typescript": "5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,242 @@
+/**
+ * Tokens do Totalmobi Booking.
+ *
+ * A REFERÊNCIA É A APPLE, MAS DESTILADA — NÃO COPIADA
+ *
+ * O que se tira de lá: espaço generoso, poucos degraus de tipografia mas com
+ * muito contraste entre eles, cor usada com parcimónia, e elevação feita por
+ * **contraste de fundo** em vez de sombras pesadas. O que não se tira: o
+ * aspeto, os cinzentos concretos, ou a ideia de que um produto de agendamento
+ * deve parecer uma página de produto.
+ *
+ * TRÊS REGRAS QUE GOVERNAM ESTE FICHEIRO
+ *
+ * 1. **A cor da marca é para ação e estado, nunca para decoração.** Num ecrã
+ *    de agenda, se tudo for da cor do cliente, nada se distingue — e o que tem
+ *    de saltar à vista é o botão que confirma e o estado que está errado.
+ * 2. **Todas as cores vivem aqui.** Um `#fff` escrito num componente é um bug:
+ *    quebra o modo escuro e quebra o white-label em silêncio.
+ * 3. **As cores do tenant entram por `--brand-*`, injetadas no servidor.** Já
+ *    validadas contra a WCAG antes de serem gravadas — ver `contrast.ts`.
+ */
+
+@theme {
+  /* --- Tipografia -------------------------------------------------------
+   * Poucos degraus, bem separados. Uma escala com doze tamanhos parecidos
+   * produz ecrãs sem hierarquia: tudo tem quase o mesmo peso, logo nada
+   * chama a atenção.
+   */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --text-4xl: 3rem;
+  --text-5xl: 3.75rem;
+
+  /* Títulos grandes precisam de entrelinha curta e letras mais juntas;
+     texto corrido precisa do contrário. */
+  --leading-tight: 1.1;
+  --leading-snug: 1.3;
+  --leading-normal: 1.55;
+  --tracking-tight: -0.022em;
+  --tracking-tighter: -0.032em;
+
+  /* --- Raio ------------------------------------------------------------- */
+  --radius-xs: 0.375rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-full: 999px;
+
+  /* --- Movimento --------------------------------------------------------
+   * Curto e a desacelerar. Uma animação de 400 ms numa aplicação que se usa
+   * oito horas por dia deixa de ser elegante ao terceiro clique.
+   */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 260ms;
+}
+
+/* =========================================================================
+   Paleta — modo claro
+   ========================================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* Superfícies, da mais funda para a mais elevada. A elevação lê-se pelo
+     degrau de fundo, não por sombra. */
+  --surface-sunken: #f1f4f5;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-overlay: #ffffff;
+
+  --ink: #0b2027;
+  --ink-muted: #56686f;
+  /* Medido contra a superfície MAIS ESCURA do modo claro (--surface-sunken),
+     que é onde um cinzento tem pior contraste. Ver a nota no fim. */
+  --ink-subtle: #657176;
+  --ink-inverted: #ffffff;
+
+  /* Duas famílias de contorno, com exigências diferentes:
+     · --line        separadores decorativos. Isentos da WCAG 1.4.11.
+     · --line-strong contorna campos de formulário — é ele que diz onde se
+                     escreve. Tem de dar 3:1 contra o fundo. */
+  --line: #e2e8ea;
+  --line-strong: #8f9698;
+
+  /* Sombras quase impercetíveis: servem para separar do fundo, não para
+     fazer o elemento flutuar. */
+  --shadow-sm: 0 1px 2px rgb(11 32 39 / 0.05);
+  --shadow-md: 0 4px 16px -4px rgb(11 32 39 / 0.1);
+  --shadow-lg: 0 12px 40px -8px rgb(11 32 39 / 0.14);
+
+  /* Cor da marca. Estes valores são o fallback da plataforma; o servidor
+     sobrepõe-nos por tenant. */
+  --brand: #0e7a84;
+  --brand-hover: #0b636b;
+  --brand-soft: #e9f4f5;
+  --brand-ink: #ffffff;
+
+  /* Estados. Deliberadamente pouco saturados: um erro não precisa de gritar
+     para ser visto, precisa de contrastar. */
+  --danger: #b42318;
+  --danger-soft: #fef3f2;
+  /* Texto dentro do botão de perigo. Calculado, não assumido: no modo escuro
+     o --danger é claro e precisa de texto preto. Escrever `text-white` no
+     componente parecia inofensivo e dava 2,79:1 no escuro. */
+  --danger-ink: #ffffff;
+  --success: #067647;
+  --success-soft: #ecfdf3;
+  --warning: #b54708;
+  --warning-soft: #fffaeb;
+
+  --focus-ring: var(--brand);
+}
+
+/* =========================================================================
+   Paleta — modo escuro
+   =========================================================================
+
+   Ativada por `data-theme="dark"` no <html>, e NÃO por
+   `@media (prefers-color-scheme: dark)`.
+
+   A razão: com o media query, o tema fica refém do sistema operativo e o
+   utilizador não o pode trocar dentro da aplicação. Quem trabalha oito horas
+   no painel há de querer escolher, independentemente do Windows — e a página
+   /design precisa de mostrar os dois lado a lado sem obrigar ninguém a mexer
+   nas definições.
+
+   A preferência do sistema continua a ser respeitada: é o script em
+   `theme-script.ts` que a lê e escreve o atributo antes da primeira pintura.
+   Assim não há duplicação da paleta nem flash do tema errado.
+   ========================================================================= */
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* No escuro a ordem inverte-se: o que está mais elevado é mais CLARO.
+     Manter a lógica do claro aqui produziria cartões que parecem buracos. */
+  --surface-sunken: #070f12;
+  --surface: #0d181c;
+  --surface-raised: #131f24;
+  --surface-overlay: #182529;
+
+  --ink: #eaf1f2;
+  --ink-muted: #97a8ae;
+  /* Medido contra a superfície mais CLARA do modo escuro (--surface-overlay).
+     No escuro a ordem inverte-se: é a superfície elevada que aperta o
+     contraste de um cinzento, não a base. */
+  --ink-subtle: #7c8c93;
+  --ink-inverted: #0b2027;
+
+  --line: #223238;
+  --line-strong: #55666c;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 16px -4px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 12px 40px -8px rgb(0 0 0 / 0.6);
+
+  --brand: #35b0bb;
+  --brand-hover: #4cc3ce;
+  --brand-soft: #0d2f33;
+  --brand-ink: #04191c;
+
+  --danger: #f97066;
+  --danger-soft: #2d1210;
+  --danger-ink: #000000;
+  --success: #47cd89;
+  --success-soft: #0a2620;
+  --warning: #f79009;
+  --warning-soft: #2b1c07;
+}
+
+/* =========================================================================
+   Base
+   ========================================================================= */
+
+body {
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* O foco é visível em tudo o que é focável e nunca se remove sem substituir.
+   `:focus-visible` mostra-o a quem navega por teclado sem o impor a quem
+   clica com o rato. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+::selection {
+  background: var(--brand-soft);
+  color: var(--ink);
+}
+
+/* Respeitar quem pediu menos movimento. Não é uma cortesia: para quem tem
+   perturbações vestibulares, uma animação pode causar enjoo real. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   Nota sobre os valores de cinzento
+   =========================================================================
+
+   Os tons de "ink-subtle" não foram escolhidos a olho: a primeira versão
+   deste ficheiro usava #7b8b91 no claro e #6d7f86 no escuro, e uma auditoria
+   de contraste sobre a página /design apanhou os dois a falhar AA (3,53:1 e
+   4,32:1, contra os 4,5:1 exigidos para texto normal). O "brand-soft" dos
+   badges tinha o mesmo problema: 4,35:1.
+
+   Foi o design system a violar exatamente a regra que impõe aos clientes.
+   Os valores atuais foram calculados com "adjustForContrast()" — a mesma
+   função que corrige a cor de marca de um tenant.
+
+   Lição: se um token é para texto, mede-se. Um cinzento "suave" que ninguém
+   consegue ler não é subtil, é inacessível.
+   ========================================================================= */

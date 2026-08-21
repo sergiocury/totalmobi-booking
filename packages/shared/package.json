@@ -1,0 +1,26 @@
+{
+  "name": "@totalmobi/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Tipos, schemas, erros e utilitários de tempo. Zero I/O, zero dependências de infraestrutura.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./time": "./src/time/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./errors": "./src/errors.ts",
+    "./result": "./src/result.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "libphonenumber-js": "^1.13.11",
+    "luxon": "^3.7.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.4",
+    "fast-check": "^4.9.0"
+  }
+}

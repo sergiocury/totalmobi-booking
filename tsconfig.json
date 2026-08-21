@@ -1,0 +1,29 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/shared"
+    },
+    {
+      "path": "./packages/availability"
+    },
+    {
+      "path": "./packages/conversation"
+    },
+    {
+      "path": "./packages/whatsapp"
+    },
+    {
+      "path": "./packages/ui"
+    },
+    {
+      "path": "./packages/notifications"
+    },
+    {
+      "path": "./packages/database"
+    },
+    {
+      "path": "./apps/web"
+    }
+  ]
+}

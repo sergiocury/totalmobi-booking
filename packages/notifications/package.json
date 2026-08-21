@@ -1,0 +1,16 @@
+{
+  "name": "@totalmobi/notifications",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "EmailProvider e composição de mensagens. O Booking envia os seus próprios emails — nunca os templates do Supabase.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "@totalmobi/shared": "*"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@totalmobi/availability",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Motor de disponibilidade. Função pura: zero I/O, zero Supabase, zero React.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "@totalmobi/shared": "*"
+  },
+  "devDependencies": {
+    "fast-check": "^4.9.0"
+  }
+}

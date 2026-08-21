@@ -1,0 +1,16 @@
+{
+  "name": "@totalmobi/whatsapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "MessagingProvider e adaptador da Meta Cloud API. Nunca automação do WhatsApp Web.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --build"
+  },
+  "dependencies": {
+    "@totalmobi/shared": "*"
+  }
+}
