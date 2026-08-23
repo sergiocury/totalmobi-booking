@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import { diasDesde, segundaFeiraDe } from '@totalmobi/shared';
 import { Card } from '@totalmobi/ui';
 
 import {
@@ -9,7 +10,6 @@ import {
   type CalendarEvent,
   type CalendarView,
 } from '@/components/calendar/adapter';
-import { diasDesde, segundaFeiraDe } from '@/components/calendar/adapter/tempo';
 
 /**
  * As duas vistas do calendário, com dados falsos.

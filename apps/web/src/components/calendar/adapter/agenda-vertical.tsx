@@ -2,7 +2,7 @@
 
 import { cn } from '@totalmobi/ui';
 
-import { diaLocal } from './tempo';
+import { diaLocal } from '@totalmobi/shared';
 import type { CalendarProps } from './types';
 
 /**

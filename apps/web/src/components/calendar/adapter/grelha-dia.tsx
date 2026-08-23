@@ -4,7 +4,9 @@ import { useRef, useState } from 'react';
 
 import { cn } from '@totalmobi/ui';
 
-import { PX_POR_MINUTO, etiquetaHora, instanteDe, minutosDoDia } from './tempo';
+import { etiquetaHora, instanteDe, minutosDoDia } from '@totalmobi/shared';
+
+import { PX_POR_MINUTO } from './medidas';
 import type { CalendarProps } from './types';
 
 /**

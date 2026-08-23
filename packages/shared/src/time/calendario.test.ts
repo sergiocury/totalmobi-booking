@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { diaLocal, diasDesde, etiquetaHora, instanteDe, minutosDoDia, segundaFeiraDe } from './tempo';
+import { diaLocal, diasDesde, etiquetaHora, instanteDe, minutosDoDia, segundaFeiraDe } from './calendario';
 
 /**
  * Os testes do calendário.
+ *
+ * Viviam em `apps/web`, e isso partia a publicação: o Next verifica os tipos de
+ * todos os `.ts` da app e a Vercel instala de dentro de `apps/web`, onde o
+ * `vitest` não existe. Ver a nota em `calendario.ts`.
  *
  * Isto não se testa clicando. Um erro de fuso aqui não parte nada de forma
  * visível: desenha uma marcação uma hora ao lado, ou na coluna do dia anterior,

@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 
+import { diasDesde, segundaFeiraDe } from '@totalmobi/shared';
 import { EmptyState, PageHeader } from '@totalmobi/ui';
 
-import { diasDesde, segundaFeiraDe } from '@/components/calendar/adapter/tempo';
 import { canManage, loadTenantPage } from '@/lib/tenant-context';
 
 import { AgendaClient } from './agenda-client';

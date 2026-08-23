@@ -16,16 +16,15 @@ export type {
 } from './types';
 
 /**
- * As funções de `tempo.ts` **não se reexportam daqui**.
+ * As contas de tempo **não se reexportam daqui**.
  *
  * Este ficheiro é `'use client'`. Tudo o que sai por ele fica marcado como
  * cliente, e uma página de servidor que o importasse rebentaria em execução com
  * "Attempted to call segundaFeiraDe() from the server". O `tsc` e o `next
  * build` deixam passar — é um erro de fronteira, não de tipos.
  *
- * Quem precisa das contas importa `@/components/calendar/adapter/tempo`
- * directamente. Continua a ser dentro do adaptador, por isso a fronteira do
- * calendário mantém-se.
+ * Vivem em `@totalmobi/shared`, que não tem `'use client'` e por isso serve os
+ * dois lados. O que fica aqui é só o desenho: ver `medidas.ts`.
  */
 
 /**

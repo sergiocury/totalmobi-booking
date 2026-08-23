@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 
 import { createBrowserClient } from '@totalmobi/database';
+import { segundaFeiraDe } from '@totalmobi/shared';
 import { Button, Card, cn } from '@totalmobi/ui';
 
 import {
@@ -10,7 +11,6 @@ import {
   type CalendarEvent,
   type CalendarView,
 } from '@/components/calendar/adapter';
-import { segundaFeiraDe } from '@/components/calendar/adapter/tempo';
 
 import {
   cancelarMarcacao,

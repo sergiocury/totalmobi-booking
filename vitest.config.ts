@@ -8,14 +8,12 @@ export default defineConfig({
         // máquina, em milissegundos. É onde vive a lógica que mais interessa.
         test: {
           name: 'unit',
-          include: [
-            'packages/*/src/**/*.test.ts',
-            'packages/*/tests/unit/**/*.test.ts',
-            // Nem toda a lógica pura vive em `packages`. A matemática de fusos
-            // do calendário está na app, e é exatamente o tipo de código que
-            // não se deve testar clicando.
-            'apps/*/src/**/*.test.ts',
-          ],
+          // Só `packages`. Um ficheiro de teste dentro de `apps/web` faz
+          // falhar o `next build` na Vercel: o Next verifica os tipos de todos
+          // os `.ts` da app, e a Vercel instala de dentro de `apps/web`, onde
+          // o `vitest` não está declarado. Lógica pura que mereça teste move-se
+          // para um pacote — que é onde devia estar de qualquer maneira.
+          include: ['packages/*/src/**/*.test.ts', 'packages/*/tests/unit/**/*.test.ts'],
           environment: 'node',
         },
       },
