@@ -43,6 +43,7 @@ Três promessas que definem as prioridades:
 | [docs/SECURITY.md](docs/SECURITY.md) | Ameaças, autorização, RGPD, checklist |
 | [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Milestones e critérios de aceite |
 | [docs/DEPLOY.md](docs/DEPLOY.md) | **No ar em booking.totalmobi.pt** desde 2026-08-23 · o que correu mal a publicar |
+| [docs/FIGMA.md](docs/FIGMA.md) | A biblioteca de design, gerada a partir do `tokens.css` · o código manda |
 
 ---
 
