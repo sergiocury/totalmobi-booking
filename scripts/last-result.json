@@ -1,1 +1,1 @@
-[{"estado":"{\n    \"fila\": {\n        \"atrasados\": 0,\n        \"pendentes\": 0,\n        \"maisAntigo\": null\n    },\n    \"ativo\": null,\n    \"agendado\": false,\n    \"periodicidade\": null,\n    \"ultimasCorridas\": [\n    ]\n}"}]
+[{"agendado":"false","jobs_pendentes":"0"}]
