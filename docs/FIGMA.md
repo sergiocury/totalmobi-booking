@@ -41,10 +41,38 @@ automático: quando um token mudar em `tokens.css`, é preciso repetir a geraç�
 - Contraste do texto contra o fundo: mínimo **5,08:1** (Primária), acima do
   mínimo AA de 4,5:1.
 
+## Code Connect: bloqueado pelo plano
+
+Tentado a 2026-08-23. A resposta do Figma:
+
+> You need a Dev or Full seat on an Organization or Enterprise plan to use Code
+> Connect.
+
+O Code Connect é o que faz o painel de inspeção mostrar **o código real** —
+`import { Button } from "@totalmobi/ui"` — em vez de um snippet gerado a partir
+dos píxeis. Precisa de plano **Organization ou Enterprise**; o Starter não
+chega, e nem sequer é o passo de publicar que falha: a API recusa a leitura.
+
+**O que se fez em vez disso.** A descrição do conjunto e de cada uma das doze
+variantes passou a carregar o código a que corresponde:
+
+```
+<Button variant="secondary">Confirmar</Button>
+```
+
+O painel de inspeção mostra a descrição, por isso quem abrir o componente vê o
+que escrever. É manual — se o botão mudar no código, muda-se aqui também — e é
+exatamente isso que o Code Connect automatizaria.
+
+**No dia em que o plano subir**, os ficheiros `ComponentName.figma.ts` são
+rápidos de escrever: a skill `figma-code-connect` tem o formato, os componentes
+já existem e as propriedades já estão nomeadas. Falta só a autorização.
+
 ## Três limites do plano Starter que moldaram o resultado
 
 Não são preferências de desenho; são o que o plano deixa fazer.
 
+0. **Sem Code Connect** — ver acima. É o que mais custa dos quatro.
 1. **Um modo por coleção** — `addMode` responde *"Limited to 1 modes only"*. O
    claro e o escuro teriam de ser dois modos da mesma coleção, com as variáveis
    a resolver sozinhas. Como não podem, o escuro é uma **coleção separada**. A
