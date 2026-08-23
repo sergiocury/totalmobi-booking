@@ -1,20 +1,36 @@
 # Deploy
 
 > Do computador do Sérgio para `booking.totalmobi.pt`.
-> Escrito a 2026-08-21, com o MVP 1 completo e por publicar.
+> Escrito a 2026-08-21. **Publicado a 2026-08-23** — o que está aqui foi feito.
 
 ---
 
-## O que está feito e o que falta
+## Está no ar
 
-O código está pronto. O que falta é ligá-lo ao mundo, e são cinco coisas — todas
-fora do editor:
+Verificado a 2026-08-23 em `booking.totalmobi.pt`: página pública 200, login
+200, agendador 401 sem segredo, webhook 403 com token errado. O `pg_cron` corre
+ao minuto (`job 2`) e um email de teste saiu pelo Brevo com id
+`<202608231813…@smtp-relay.mailin.fr>`.
 
-1. Repositório no GitHub
-2. Projeto na Vercel, com as variáveis de ambiente
-3. O subdomínio a apontar para lá
-4. **O agendador da fila** — sem ele os lembretes não saem
-5. Chave do Brevo, para os emails saírem mesmo
+Os cinco passos abaixo ficam como registo de **como** se fez — e do que correu
+mal pelo caminho, que é a parte que poupa tempo na próxima vez.
+
+### Três coisas que só se descobrem a publicar
+
+1. **`apps/web` tem de declarar o `typescript` e o `@types/node`.** Estavam só
+   na raiz. Localmente o npm eleva-os e a resolução sobe a árvore; a Vercel
+   instala **de dentro** de `apps/web` por causa do Root Directory, e aí não há
+   árvore acima. O build morria em `Running TypeScript` com "do not have the
+   required package(s) installed", e o sinal estava no número de pacotes:
+   **434 na Vercel contra 471 a partir da raiz**.
+2. **As variáveis de ambiente não se aplicam retroativamente.** Depois de as
+   guardar é preciso um **Redeploy**; sem isso o build antigo continua a servir
+   e as páginas dão 500.
+3. **O Brevo bloqueia IPs desconhecidos** ao fim de 30 dias de uso a partir de
+   IPs fixos. As funções da Vercel mudam de IP a cada invocação, por isso
+   autorizar um não resolve — desativa-se o bloqueio, ou deixa-se o Brevo
+   autorizar automaticamente. O primeiro envio falhou por isto, e o **backoff
+   recuperou sozinho à terceira tentativa** depois de a definição mudar.
 
 ---
 

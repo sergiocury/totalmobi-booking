@@ -42,7 +42,7 @@ Três promessas que definem as prioridades:
 | [docs/DATABASE.md](docs/DATABASE.md) | Modelo de dados completo, RLS, constraints |
 | [docs/SECURITY.md](docs/SECURITY.md) | Ameaças, autorização, RGPD, checklist |
 | [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Milestones e critérios de aceite |
-| [docs/DEPLOY.md](docs/DEPLOY.md) | Publicar, e o **agendador da fila** — sem ele os lembretes não saem |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | **No ar em booking.totalmobi.pt** desde 2026-08-23 · o que correu mal a publicar |
 
 ---
 
