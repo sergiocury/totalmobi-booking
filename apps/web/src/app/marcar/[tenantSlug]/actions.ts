@@ -75,6 +75,10 @@ async function identificarPedido(): Promise<string> {
 
 const MOTIVOS: Record<string, string> = {
   closed: 'Fechado neste dia.',
+  // Diferente de `closed`: a casa abre, quem faz este serviço é que não vem.
+  // Vale a pena dizê-lo — quem quer marcar pode escolher outro serviço em vez
+  // de fechar a página.
+  staff_off: 'Ninguém faz este serviço neste dia. Experimente outro dia ou outro serviço.',
   fully_booked: 'Sem vagas neste dia.',
   outside_advance_window: 'Sem horas disponíveis com a antecedência necessária.',
   service_does_not_fit: 'Este serviço não cabe no horário deste dia.',

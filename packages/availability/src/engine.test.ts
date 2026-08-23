@@ -377,7 +377,7 @@ describe('as razões do vazio', () => {
     expect(r.reason).toBe('closed');
   });
 
-  it('férias fecham a agenda de quem está de férias', () => {
+  it('férias dizem "ninguém disponível", não "fechado" — a casa está aberta', () => {
     const r = getAvailableSlots(
       entrada({
         staff: [
@@ -390,6 +390,31 @@ describe('as razões do vazio', () => {
             ],
           }),
         ],
+      }),
+    );
+
+    expect(r.reason).toBe('staff_off');
+  });
+
+  it('a folga semanal de uma profissional não é a casa fechada', () => {
+    // A unidade abre à quarta; esta profissional só trabalha à segunda. Dizer
+    // "fechado" mandaria embora quem podia marcar outro serviço no mesmo dia.
+    const r = getAvailableSlots(
+      entrada({
+        staff: [staff({ workingHours: [{ weekday: 1, startsAt: '09:00', endsAt: '18:00' }] })],
+      }),
+    );
+
+    expect(r.reason).toBe('staff_off');
+  });
+
+  it('domingo continua fechado mesmo sem ninguém a trabalhar', () => {
+    // A distinção não pode ir longe de mais: se a unidade não abre, é fechado,
+    // independentemente do horário de quem lá trabalha.
+    const r = getAvailableSlots(
+      entrada({
+        date: '2026-08-23',
+        staff: [staff({ workingHours: [{ weekday: 0, startsAt: '09:00', endsAt: '18:00' }] })],
       }),
     );
 

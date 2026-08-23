@@ -1,1 +1,1 @@
-[{"column_name":"id"},{"column_name":"location_id"},{"column_name":"weekday"},{"column_name":"opens_at"},{"column_name":"closes_at"},{"column_name":"created_at"},{"column_name":"updated_at"}]
+[{"servicos":4,"equipa":2,"dias_abertos":5,"turnos":9}]

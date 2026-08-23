@@ -79,8 +79,16 @@ export interface Slot {
 }
 
 export type UnavailableReason =
-  /** Nem sequer há horário: fechado, feriado, ninguém a trabalhar. */
+  /**
+   * A **unidade** não abre neste dia: horário semanal, feriado ou exceção.
+   *
+   * Não confundir com `staff_off`. Dizer "fechado" quando a casa está aberta e
+   * é a profissional que folga manda o cliente embora por uma razão falsa — e
+   * ele podia marcar outro serviço no mesmo dia.
+   */
   | 'closed'
+  /** A unidade abre, mas ninguém que faça este serviço trabalha neste dia. */
+  | 'staff_off'
   /** Há horário, mas está tudo ocupado. */
   | 'fully_booked'
   /** O dia é hoje e já passou a hora, ou está fora da janela de antecedência. */

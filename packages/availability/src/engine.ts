@@ -85,6 +85,9 @@ export function getAvailableSlots(input: AvailabilityInput): AvailabilityResult 
   let houveJanela = false;
   let houveSlotCandidato = false;
   let houveSlotDentroDaJanela = false;
+  // A unidade tinha horário neste dia, mesmo que ninguém trabalhasse? O
+  // `resolveDaySchedule` já sabe distinguir — só faltava alguém perguntar.
+  let unidadeAberta = false;
 
   for (const profissional of input.staff) {
     const dia = resolveDaySchedule({
@@ -96,7 +99,20 @@ export function getAvailableSlots(input: AvailabilityInput): AvailabilityResult 
       timeOff: profissional.timeOff,
     });
 
-    if (dia.windows.length === 0) continue;
+    if (dia.windows.length === 0) {
+      // Duas causas, a mesma conclusão: a unidade tinha horário e a pessoa
+      // não estava lá. `no_staff_hours` é "não trabalha neste dia da semana";
+      // `time_off` é "está de férias". Ambas são diferentes de "fechado" —
+      // que é a casa não abrir de todo.
+      //
+      // As restantes causas ficam de fora de propósito: `no_location_hours` é
+      // mesmo fechado, e `exception` pode ser um fecho da unidade, que não se
+      // distingue aqui sem adivinhar.
+      if (dia.closedReason === 'no_staff_hours' || dia.closedReason === 'time_off') {
+        unidadeAberta = true;
+      }
+      continue;
+    }
     houveJanela = true;
 
     for (const janela of dia.windows) {
@@ -126,7 +142,15 @@ export function getAvailableSlots(input: AvailabilityInput): AvailabilityResult 
   }
 
   if (porInicio.size === 0) {
-    return { slots: [], reason: razaoDoVazio(houveJanela, houveSlotCandidato, houveSlotDentroDaJanela) };
+    return {
+      slots: [],
+      reason: razaoDoVazio(
+        houveJanela,
+        houveSlotCandidato,
+        houveSlotDentroDaJanela,
+        unidadeAberta,
+      ),
+    };
   }
 
   const slots: Slot[] = [...porInicio.entries()]
@@ -182,8 +206,11 @@ function razaoDoVazio(
   houveJanela: boolean,
   houveSlotCandidato: boolean,
   houveSlotDentroDaJanela: boolean,
+  unidadeAberta: boolean,
 ): UnavailableReason {
-  if (!houveJanela) return 'closed';
+  // Sem janela nenhuma há duas histórias diferentes, e o cliente merece a
+  // certa: a casa está fechada, ou a casa abre e quem faz isto hoje não vem.
+  if (!houveJanela) return unidadeAberta ? 'staff_off' : 'closed';
   // Havia horário mas nem um slot cabia: o serviço é maior do que o dia.
   if (!houveSlotCandidato) return 'service_does_not_fit';
   // Cabiam slots, mas todos caíam fora da antecedência permitida.
