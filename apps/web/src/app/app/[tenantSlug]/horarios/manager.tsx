@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, useTransition } from 'react';
+import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 
 import {
   Badge,
@@ -95,6 +95,33 @@ function agrupar(
   return [...porDia.entries()].map(([weekday, periods]) => ({ weekday, periods }));
 }
 
+type Aba = 'unidade' | 'equipa' | 'excecoes' | 'ausencias';
+
+const ABAS: { chave: Aba; rotulo: string }[] = [
+  { chave: 'unidade', rotulo: 'Unidade' },
+  { chave: 'equipa', rotulo: 'Equipa' },
+  { chave: 'excecoes', rotulo: 'Exceções' },
+  { chave: 'ausencias', rotulo: 'Ausências' },
+];
+
+/**
+ * PORQUE É QUE ISTO PASSOU A TER SEPARADORES
+ *
+ * Eram quatro assuntos empilhados na vertical: horário da unidade, horário de
+ * cada profissional, exceções e ausências. Para mudar o horário de alguém era
+ * preciso rolar por cima do editor da unidade **todas as vezes** — e as duas
+ * grelhas são visualmente idênticas, por isso a meio do scroll deixava de se
+ * saber qual delas se estava a editar. Não é falta de informação; é excesso de
+ * coisas ao mesmo tempo.
+ *
+ * Um separador de cada vez resolve isso sem esconder nada: os quatro assuntos
+ * continuam à vista no topo, com um contador quando há algo a precisar de
+ * atenção.
+ *
+ * E a parede de chips com um por profissional passa a lista com pesquisa. Com
+ * 50 pessoas, cinquenta chips a passar de linha eram um bloco de texto onde
+ * ninguém encontra ninguém.
+ */
 export function SchedulesManager({
   tenantId,
   tenantSlug,
@@ -121,6 +148,39 @@ export function SchedulesManager({
   const [erro, setErro] = useState<string | null>(null);
   const [aRemover, startTransition] = useTransition();
 
+  const [aba, setAba] = useState<Aba>('unidade');
+  const [procura, setProcura] = useState('');
+
+  /**
+   * Quem não tem horário nesta unidade.
+   *
+   * É a configuração que falha em silêncio: sem horário, a pessoa nunca
+   * aparece em marcação nenhuma e ninguém percebe porquê. O mesmo problema do
+   * "sem serviços" na página da Equipa, e merece a mesma visibilidade.
+   */
+  const semHorario = useMemo(() => {
+    const comHoras = new Set(
+      staffHours.filter((h) => h.location_id === locationId).map((h) => h.staff_id),
+    );
+    return new Set(staff.filter((p) => !comHoras.has(p.id)).map((p) => p.id));
+  }, [staff, staffHours, locationId]);
+
+  const equipaFiltrada = useMemo(() => {
+    const termo = procura
+      .trim()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase();
+    if (!termo) return staff;
+    return staff.filter((p) =>
+      p.full_name
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '')
+        .toLowerCase()
+        .includes(termo),
+    );
+  }, [staff, procura]);
+
   const unidade = locations.find((l) => l.id === locationId)!;
 
   const horarioUnidade = agrupar(
@@ -146,7 +206,7 @@ export function SchedulesManager({
   }
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-8">
       {erro ? (
         <p
           role="alert"
@@ -156,119 +216,208 @@ export function SchedulesManager({
         </p>
       ) : null}
 
-      {locations.length > 1 ? (
-        <div>
-          <label
-            htmlFor="unidade"
-            className="mb-1.5 block text-(length:--text-sm) font-medium"
-          >
-            Unidade
-          </label>
-          <select
-            id="unidade"
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="rounded-(--radius-sm) border border-(--line-strong) bg-(--surface) px-3 py-2 text-(length:--text-base)"
-          >
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <nav aria-label="Secções dos horários" className="flex flex-wrap gap-1">
+          {ABAS.map((a) => {
+            const alerta = a.chave === 'equipa' && semHorario.size > 0 ? semHorario.size : null;
+
+            return (
+              <button
+                key={a.chave}
+                type="button"
+                onClick={() => setAba(a.chave)}
+                aria-current={aba === a.chave ? 'page' : undefined}
+                className={cn(
+                  'flex min-h-11 cursor-pointer items-center gap-2 rounded-(--radius-sm) px-3.5 text-(length:--text-sm)',
+                  'transition-[background-color,color] duration-(--duration-fast) ease-(--ease-out-soft)',
+                  aba === a.chave
+                    ? 'bg-(--brand-soft) font-medium text-(--brand)'
+                    : 'text-(--ink-muted) hover:bg-(--surface-sunken)',
+                )}
+              >
+                {a.rotulo}
+                {alerta ? (
+                  <span
+                    className="rounded-(--radius-full) bg-(--warning) px-1.5 text-(length:--text-xs) tabular-nums text-(--ink-inverted)"
+                    title={`${alerta} sem horário nesta unidade`}
+                  >
+                    {alerta}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* O seletor de unidade vale para tudo o que está abaixo, por isso fica
+            no topo e não dentro de um separador. */}
+        {locations.length > 1 ? (
+          <div>
+            <label htmlFor="unidade" className="mb-1.5 block text-(length:--text-sm) font-medium">
+              Unidade
+            </label>
+            <select
+              id="unidade"
+              value={locationId}
+              onChange={(e) => setLocationId(e.target.value)}
+              className="min-h-11 rounded-(--radius-sm) border border-(--line-strong) bg-(--surface) px-3 text-(length:--text-base)"
+            >
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
+      </div>
+
+      {aba === 'unidade' ? (
+        <section>
+          <h2 className="mb-1 text-(length:--text-xl) font-semibold tracking-(--tracking-tight)">
+            Horário da {unidade.name}
+          </h2>
+          <p className="mb-5 text-(length:--text-sm) text-(--ink-subtle)">
+            Fuso horário: {unidade.timezone}
+          </p>
+
+          <WeekEditor
+            key={locationId}
+            initial={horarioUnidade}
+            hint="As horas são locais desta unidade. Guardadas assim, continuam certas depois da mudança da hora — se fossem guardadas como instantes, a unidade passaria a abrir uma hora mais cedo ou mais tarde duas vezes por ano."
+            onSave={(dias) => setLocationHours(tenantId, tenantSlug, locationId, dias)}
+            saveLabel="Guardar horário da unidade"
+          />
+        </section>
       ) : null}
 
-      <section>
-        <h2 className="mb-1 text-(length:--text-xl) font-semibold tracking-(--tracking-tight)">
-          Horário da {unidade.name}
-        </h2>
-        <p className="mb-5 text-(length:--text-sm) text-(--ink-subtle)">
-          Fuso horário: {unidade.timezone}
-        </p>
+      {aba === 'equipa' ? (
+        <section>
+          <h2 className="mb-1 text-(length:--text-xl) font-semibold tracking-(--tracking-tight)">
+            Horário de cada profissional
+          </h2>
+          <p className="mb-5 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
+            O horário do profissional é cruzado com o da unidade — quem diz que trabalha até às 20h
+            numa clínica que fecha às 19h, atende até às 19h.
+          </p>
 
-        <WeekEditor
-          initial={horarioUnidade}
-          hint="As horas são locais desta unidade. Guardadas assim, continuam certas depois da mudança da hora — se fossem guardadas como instantes, a unidade passaria a abrir uma hora mais cedo ou mais tarde duas vezes por ano."
-          onSave={(dias) => setLocationHours(tenantId, tenantSlug, locationId, dias)}
-          saveLabel="Guardar horário da unidade"
-        />
-      </section>
+          {staff.length === 0 ? (
+            <EmptyState
+              title="Ainda não há ninguém na equipa"
+              description="Adicione profissionais para lhes dar horário."
+            />
+          ) : (
+            /* Lista à esquerda, editor à direita. Quem está a editar não perde
+               de vista quem falta — que era o que acontecia com o editor
+               sozinho debaixo de uma parede de chips. */
+            <div className="grid gap-5 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+              <div className="min-w-0">
+                <Field
+                  label="Procurar profissional"
+                  hideLabel
+                  type="search"
+                  placeholder="Procurar profissional"
+                  value={procura}
+                  onChange={(e) => setProcura(e.target.value)}
+                />
 
-      <section>
-        <h2 className="mb-1 text-(length:--text-xl) font-semibold tracking-(--tracking-tight)">
-          Horário de cada profissional
-        </h2>
-        <p className="mb-5 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
-          O horário do profissional é cruzado com o da unidade — quem diz que trabalha até às 20h
-          numa clínica que fecha às 19h, atende até às 19h.
-        </p>
+                {equipaFiltrada.length === 0 ? (
+                  <p className="mt-3 text-(length:--text-sm) text-(--ink-muted)">
+                    Ninguém com este nome.
+                  </p>
+                ) : (
+                  <ul className="mt-3 max-h-96 overflow-y-auto pr-1">
+                    {equipaFiltrada.map((pessoa) => {
+                      const sem = semHorario.has(pessoa.id);
+                      return (
+                        <li key={pessoa.id}>
+                          <button
+                            type="button"
+                            onClick={() => setStaffId(pessoa.id)}
+                            aria-current={staffId === pessoa.id ? 'true' : undefined}
+                            className={cn(
+                              'flex min-h-11 w-full cursor-pointer items-center gap-2.5 rounded-(--radius-sm) px-2.5 text-left text-(length:--text-sm)',
+                              'transition-[background-color] duration-(--duration-fast)',
+                              staffId === pessoa.id
+                                ? 'bg-(--brand-soft) font-medium text-(--brand)'
+                                : 'text-(--ink) hover:bg-(--surface-sunken)',
+                            )}
+                          >
+                            <span
+                              aria-hidden
+                              className="size-2.5 shrink-0 rounded-(--radius-full)"
+                              style={{ background: pessoa.calendar_color ?? 'currentColor' }}
+                            />
+                            <span className="min-w-0 flex-1 truncate">{pessoa.full_name}</span>
+                            {sem ? (
+                              <span
+                                className="shrink-0 text-(length:--text-xs) text-(--warning)"
+                                title="Sem horário nesta unidade"
+                              >
+                                sem horário
+                              </span>
+                            ) : null}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
 
-        {staff.length === 0 ? (
-          <EmptyState
-            title="Ainda não há ninguém na equipa"
-            description="Adicione profissionais para lhes dar horário."
-          />
-        ) : (
-          <>
-            <div className="mb-5 flex flex-wrap gap-2">
-              {staff.map((pessoa) => (
-                <button
-                  key={pessoa.id}
-                  type="button"
-                  onClick={() => setStaffId(pessoa.id)}
-                  aria-pressed={staffId === pessoa.id}
-                  className={cn(
-                    'inline-flex items-center gap-2 rounded-(--radius-full) border px-3.5 py-1.5',
-                    'text-(length:--text-sm) font-medium whitespace-nowrap',
-                    'transition-colors duration-(--duration-fast)',
-                    staffId === pessoa.id
-                      ? 'border-transparent bg-(--brand-soft) text-(--brand)'
-                      : 'border-(--line) text-(--ink-muted) hover:border-(--line-strong)',
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className="size-2.5 rounded-(--radius-full)"
-                    style={{ background: pessoa.calendar_color ?? 'currentColor' }}
-                  />
-                  {pessoa.full_name}
-                </button>
-              ))}
+              <div className="min-w-0">
+                {staffId ? (
+                  <>
+                    <p className="mb-3 flex flex-wrap items-center gap-2 font-medium">
+                      {nomeStaff(staffId)}
+                      {semHorario.has(staffId) ? (
+                        <Badge tone="warning">Sem horário nesta unidade</Badge>
+                      ) : null}
+                    </p>
+                    <WeekEditor
+                      key={`${staffId}-${locationId}`}
+                      initial={horarioStaff}
+                      onSave={(dias) =>
+                        setStaffHours(tenantId, tenantSlug, staffId, locationId, dias)
+                      }
+                      saveLabel={`Guardar horário de ${nomeStaff(staffId).split(' ')[0]}`}
+                    />
+                  </>
+                ) : (
+                  <p className="text-(length:--text-sm) text-(--ink-muted)">
+                    Escolha alguém à esquerda.
+                  </p>
+                )}
+              </div>
             </div>
+          )}
+        </section>
+      ) : null}
 
-            {staffId ? (
-              <WeekEditor
-                key={`${staffId}-${locationId}`}
-                initial={horarioStaff}
-                onSave={(dias) => setStaffHours(tenantId, tenantSlug, staffId, locationId, dias)}
-                saveLabel={`Guardar horário de ${nomeStaff(staffId).split(' ')[0]}`}
-              />
-            ) : null}
-          </>
-        )}
-      </section>
-
-      <ExceptionsSection
+      {aba === 'excecoes' ? (
+        <ExceptionsSection
         tenantId={tenantId}
         tenantSlug={tenantSlug}
         locations={locations}
         staff={staff}
         exceptions={exceptions}
         canManage={canManage}
-        onDelete={(id) => remover(() => deleteException(tenantId, tenantSlug, id))}
-        busy={aRemover}
-      />
+          onDelete={(id) => remover(() => deleteException(tenantId, tenantSlug, id))}
+          busy={aRemover}
+        />
+      ) : null}
 
-      <TimeOffSection
+      {aba === 'ausencias' ? (
+        <TimeOffSection
         tenantId={tenantId}
         tenantSlug={tenantSlug}
         staff={staff}
         timeOff={timeOff}
         canManage={canManage}
-        onDelete={(id) => remover(() => deleteTimeOff(tenantId, tenantSlug, id))}
-        busy={aRemover}
-      />
+          onDelete={(id) => remover(() => deleteTimeOff(tenantId, tenantSlug, id))}
+          busy={aRemover}
+        />
+      ) : null}
     </div>
   );
 }

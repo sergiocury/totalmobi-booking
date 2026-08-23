@@ -52,19 +52,30 @@ export default async function SchedulesPage({
     );
   }
 
-  const primeira = unidades[0]!;
+  /**
+   * Os horários de **todas** as unidades, não só da primeira.
+   *
+   * Isto era um bug com dentes. O seletor deixava mudar de unidade, mas só
+   * vinham as horas da primeira — a segunda aparecia **vazia mesmo quando
+   * estava configurada**. E como `setLocationHours` faz `delete` seguido de
+   * `insert`, bastava alguém abrir a segunda unidade, ver o vazio e carregar em
+   * guardar para apagar o horário verdadeiro.
+   *
+   * O volume não justifica o risco: são sete dias vezes o número de unidades.
+   */
+  const idsUnidades = unidades.map((u) => u.id);
 
   const [{ data: locationHours }, { data: staffHours }, { data: exceptions }, { data: timeOff }] =
     await Promise.all([
       context.client
         .from('location_business_hours')
         .select('id, location_id, weekday, opens_at, closes_at')
-        .eq('location_id', primeira.id)
+        .in('location_id', idsUnidades)
         .order('weekday'),
       context.client
         .from('staff_working_hours')
         .select('id, staff_id, location_id, weekday, starts_at, ends_at, valid_from, valid_until')
-        .eq('location_id', primeira.id),
+        .in('location_id', idsUnidades),
       context.client
         .from('schedule_exceptions')
         .select('id, date, kind, starts_at, ends_at, reason, scope_tenant, location_id, staff_id')
