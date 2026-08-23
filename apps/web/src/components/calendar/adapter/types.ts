@@ -45,12 +45,35 @@ export interface CalendarRange {
   stepMinutes: number;
 }
 
+/**
+ * Dia ou semana.
+ *
+ * São vistas diferentes, não a mesma com outro zoom: no dia as colunas são
+ * profissionais, na semana são dias. Uma semana com uma coluna por profissional
+ * por dia seriam trinta e cinco colunas num ecrã — ilegível em qualquer
+ * tamanho. Por isso a semana é **de uma profissional de cada vez**.
+ */
+export type CalendarView = 'dia' | 'semana';
+
 export interface CalendarProps {
+  /** No dia, o dia mostrado. Na semana, a segunda-feira. */
   date: string;
   timezone: string;
   events: CalendarEvent[];
   resources: CalendarResource[];
   range: CalendarRange;
+
+  /** `'dia'` por omissão. */
+  view?: CalendarView;
+
+  /**
+   * As colunas da vista de semana, em `AAAA-MM-DD`.
+   *
+   * Não são sempre sete. Uma casa que fecha ao domingo não precisa de uma
+   * coluna vazia a ocupar um sétimo do ecrã — quem decide é a página, que sabe
+   * os dias em que a unidade abre.
+   */
+  days?: string[];
 
   /** Clique no espaço vazio: criar. */
   onEmptyClick?: (inicio: Date, resourceId: string | null) => void;

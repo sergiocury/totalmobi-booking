@@ -5,7 +5,12 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { createBrowserClient } from '@totalmobi/database';
 import { Button, Card, cn } from '@totalmobi/ui';
 
-import { CalendarAdapter, type CalendarEvent } from '@/components/calendar/adapter';
+import {
+  CalendarAdapter,
+  type CalendarEvent,
+  type CalendarView,
+} from '@/components/calendar/adapter';
+import { segundaFeiraDe } from '@/components/calendar/adapter/tempo';
 
 import {
   cancelarMarcacao,
@@ -76,6 +81,9 @@ export function AgendaClient({
   locationId,
   timezone,
   data,
+  vista,
+  diasDaSemana,
+  profissionalPedido,
   equipa,
   servicos,
   iniciais,
@@ -89,6 +97,9 @@ export function AgendaClient({
   locationId: string;
   timezone: string;
   data: string;
+  vista: CalendarView;
+  diasDaSemana: string[];
+  profissionalPedido: string | null;
   equipa: Profissional[];
   servicos: ServicoDaCasa[];
   iniciais: MarcacaoDaAgenda[];
@@ -98,7 +109,20 @@ export function AgendaClient({
   granularidade: number;
 }) {
   const [marcacoes, setMarcacoes] = useState(iniciais);
-  const [filtroStaff, setFiltroStaff] = useState<string | null>(null);
+
+  /**
+   * O filtro de profissional tem significados diferentes nas duas vistas.
+   *
+   * No dia é um filtro de verdade: `null` mostra toda a gente, cada uma na sua
+   * coluna. Na semana **não pode ser `null`** — as colunas são dias, e sem
+   * escolher uma pessoa a grelha empilhava a equipa toda na mesma coluna, que é
+   * exatamente a mancha ilegível que esta vista existe para evitar.
+   *
+   * Por isso a semana começa na profissional que vier no URL, ou na primeira.
+   */
+  const [filtroStaff, setFiltroStaff] = useState<string | null>(
+    vista === 'semana' ? (profissionalPedido ?? equipa[0]?.id ?? null) : profissionalPedido,
+  );
   const [aberta, setAberta] = useState<MarcacaoDaAgenda | null>(null);
   const [aCriar, setACriar] = useState<{ inicio: Date; staffId: string | null } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -110,11 +134,15 @@ export function AgendaClient({
     setMarcacoes(iniciais);
   }, [iniciais]);
 
+  // Tem de ser o mesmo intervalo que a página pediu ao servidor. Se divergirem,
+  // o recarregamento do Realtime devolve menos dias do que estão desenhados e a
+  // semana encolhe sozinha à primeira alteração.
   const limites = useMemo(() => {
-    const inicio = new Date(`${data}T00:00:00Z`);
-    const fim = new Date(inicio.getTime() + 36 * 3_600_000);
+    const dias = vista === 'semana' ? 7 : 1;
+    const inicio = new Date(new Date(`${data}T00:00:00Z`).getTime() - 12 * 3_600_000);
+    const fim = new Date(inicio.getTime() + (dias * 24 + 48) * 3_600_000);
     return { inicio: inicio.toISOString(), fim: fim.toISOString() };
-  }, [data]);
+  }, [data, vista]);
 
   const recarregar = useCallback(async () => {
     const r = await recarregarDia(tenantId, locationId, limites.inicio, limites.fim);
@@ -193,6 +221,14 @@ export function AgendaClient({
     color: p.cor,
   }));
 
+  // Na semana, as marcações das outras pessoas não têm coluna onde aparecer.
+  // Mostrá-las na mesma seria dizer que a Ana está ocupada quando quem está é o
+  // João.
+  const eventosVisiveis =
+    vista === 'semana' && filtroStaff
+      ? eventos.filter((e) => e.resourceId === filtroStaff)
+      : eventos;
+
   async function mover(id: string, novoInicio: Date, staffId: string | null): Promise<boolean> {
     setAviso(null);
 
@@ -209,14 +245,31 @@ export function AgendaClient({
     return true;
   }
 
+  // Conta o que está à vista. Dizer "3 por confirmar" numa semana filtrada por
+  // uma pessoa, e depois só mostrar uma, é o ecrã a contradizer-se.
+  const idsVisiveis = new Set(eventosVisiveis.map((e) => e.id));
   const porConfirmar = marcacoes.filter(
-    (m) => m.status === 'pending' || m.status === 'awaiting_confirmation',
+    (m) =>
+      idsVisiveis.has(m.id) &&
+      (m.status === 'pending' || m.status === 'awaiting_confirmation'),
   ).length;
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <NavegarDia data={data} tenantSlug={tenantSlug} />
+        <NavegarPeriodo
+          data={data}
+          vista={vista}
+          tenantSlug={tenantSlug}
+          profissional={filtroStaff}
+        />
+
+        <AlternarVista
+          data={data}
+          vista={vista}
+          tenantSlug={tenantSlug}
+          profissional={filtroStaff}
+        />
 
         <div className="ml-auto flex items-center gap-3 text-(length:--text-sm)">
           {porConfirmar > 0 ? (
@@ -239,9 +292,13 @@ export function AgendaClient({
 
       {equipa.length > 1 ? (
         <div className="mb-4 flex flex-wrap gap-2">
-          <Filtro activo={filtroStaff === null} onClick={() => setFiltroStaff(null)}>
-            Todos
-          </Filtro>
+          {/* "Todos" não existe na semana: as colunas são dias, e sem uma
+              pessoa escolhida não há grelha que se leia. */}
+          {vista === 'dia' ? (
+            <Filtro activo={filtroStaff === null} onClick={() => setFiltroStaff(null)}>
+              Todos
+            </Filtro>
+          ) : null}
           {equipa.map((p) => (
             <Filtro
               key={p.id}
@@ -265,7 +322,9 @@ export function AgendaClient({
         <CalendarAdapter
           date={data}
           timezone={timezone}
-          events={eventos}
+          view={vista}
+          days={diasDaSemana}
+          events={eventosVisiveis}
           resources={colunas}
           range={{ startMinute: abreMinuto, endMinute: fechaMinuto, stepMinutes: granularidade }}
           onEventClick={(id) => setAberta(marcacoes.find((m) => m.id === id) ?? null)}
@@ -329,49 +388,167 @@ export function AgendaClient({
   );
 }
 
-function NavegarDia({ data, tenantSlug }: { data: string; tenantSlug: string }) {
+/**
+ * Andar para trás e para a frente.
+ *
+ * O passo é o tamanho do que está à vista: um dia na vista de dia, sete na de
+ * semana. Um botão que anda um dia numa vista de semana obrigaria a sete
+ * cliques para mudar de semana, e a vista mudaria por baixo do cursor a meio.
+ *
+ * São `<a>` e não botões porque o período vive no URL. Isso torna a agenda de
+ * uma quinta-feira uma coisa que se envia a um colega, e faz o botão "para
+ * trás" do browser fazer o que se espera.
+ */
+function NavegarPeriodo({
+  data,
+  vista,
+  tenantSlug,
+  profissional,
+}: {
+  data: string;
+  vista: CalendarView;
+  tenantSlug: string;
+  profissional: string | null;
+}) {
+  const passo = vista === 'semana' ? 7 : 1;
   const dia = new Date(`${data}T12:00:00Z`);
+
   const desloca = (dias: number) => {
     const d = new Date(dia);
-    d.setDate(d.getDate() + dias);
-    return `/app/${tenantSlug}/agenda?data=${d.toISOString().slice(0, 10)}`;
+    d.setUTCDate(d.getUTCDate() + dias);
+    return urlDaAgenda(tenantSlug, d.toISOString().slice(0, 10), vista, profissional);
   };
+
   const hoje = new Date().toISOString().slice(0, 10);
+  const noPeriodoDeHoje =
+    vista === 'semana' ? segundaFeiraDe(hoje) === segundaFeiraDe(data) : data === hoje;
+
+  const fimDaSemana = new Date(dia);
+  fimDaSemana.setUTCDate(fimDaSemana.getUTCDate() + 6);
 
   return (
     <div className="flex items-center gap-2">
       <a
-        href={desloca(-1)}
+        href={desloca(-passo)}
         className="flex size-11 items-center justify-center rounded-(--radius-sm) border border-(--line) bg-(--surface)"
-        aria-label="Dia anterior"
+        aria-label={vista === 'semana' ? 'Semana anterior' : 'Dia anterior'}
       >
         ‹
       </a>
       <a
-        href={desloca(1)}
+        href={desloca(passo)}
         className="flex size-11 items-center justify-center rounded-(--radius-sm) border border-(--line) bg-(--surface)"
-        aria-label="Dia seguinte"
+        aria-label={vista === 'semana' ? 'Semana seguinte' : 'Dia seguinte'}
       >
         ›
       </a>
-      {data !== hoje ? (
+      {!noPeriodoDeHoje ? (
         <a
-          href={`/app/${tenantSlug}/agenda`}
+          href={urlDaAgenda(tenantSlug, null, vista, profissional)}
           className="flex min-h-11 items-center rounded-(--radius-sm) border border-(--line) bg-(--surface) px-3 text-(length:--text-sm)"
         >
           Hoje
         </a>
       ) : null}
-      <p className="ml-1 font-medium">
-        {new Intl.DateTimeFormat('pt-PT', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          timeZone: 'UTC',
-        }).format(dia)}
+      <p className="ml-1 font-medium first-letter:uppercase">
+        {vista === 'semana' ? intervalo(dia, fimDaSemana) : porExtenso(dia)}
       </p>
     </div>
   );
+}
+
+/**
+ * Dia ou semana.
+ *
+ * Dois links, não um `<select>`: são duas opções e ambas cabem no ecrã. E como
+ * são links, a escolha fica no URL — quem trabalha sempre à semana marca-a nos
+ * favoritos e é lá que aterra.
+ */
+function AlternarVista({
+  data,
+  vista,
+  tenantSlug,
+  profissional,
+}: {
+  data: string;
+  vista: CalendarView;
+  tenantSlug: string;
+  profissional: string | null;
+}) {
+  const opcoes: { chave: CalendarView; rotulo: string }[] = [
+    { chave: 'dia', rotulo: 'Dia' },
+    { chave: 'semana', rotulo: 'Semana' },
+  ];
+
+  return (
+    <div
+      className="flex overflow-hidden rounded-(--radius-sm) border border-(--line)"
+      role="group"
+      aria-label="Vista da agenda"
+    >
+      {opcoes.map((o) => (
+        <a
+          key={o.chave}
+          href={urlDaAgenda(tenantSlug, data, o.chave, profissional)}
+          aria-current={vista === o.chave ? 'page' : undefined}
+          className={cn(
+            'flex min-h-11 items-center px-3 text-(length:--text-sm)',
+            vista === o.chave
+              ? 'bg-(--brand) font-medium text-(--brand-ink)'
+              : 'bg-(--surface) text-(--ink-muted)',
+          )}
+        >
+          {o.rotulo}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * O URL da agenda.
+ *
+ * Um sítio só a construí-lo. A profissional viaja no URL para que trocar de
+ * vista não a perca — mudar de "semana da Ana" para o dia e voltar deve trazer
+ * a Ana de volta, não a primeira da lista.
+ */
+function urlDaAgenda(
+  tenantSlug: string,
+  data: string | null,
+  vista: CalendarView,
+  profissional: string | null,
+): string {
+  const q = new URLSearchParams();
+  if (data) q.set('data', data);
+  if (vista === 'semana') q.set('vista', 'semana');
+  if (profissional) q.set('profissional', profissional);
+
+  const cauda = q.toString();
+  return `/app/${tenantSlug}/agenda${cauda ? `?${cauda}` : ''}`;
+}
+
+function porExtenso(d: Date): string {
+  return new Intl.DateTimeFormat('pt-PT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(d);
+}
+
+/**
+ * "24–30 de agosto", ou "29 de setembro – 5 de outubro" quando a semana muda de
+ * mês. Repetir o mês nos dois lados quando é o mesmo é ruído.
+ */
+function intervalo(de: Date, ate: Date): string {
+  const mes = (d: Date) =>
+    new Intl.DateTimeFormat('pt-PT', { month: 'long', timeZone: 'UTC' }).format(d);
+
+  const mesmoMes = de.getUTCMonth() === ate.getUTCMonth();
+
+  return mesmoMes
+    ? `${de.getUTCDate()}–${ate.getUTCDate()} de ${mes(de)}`
+    : `${de.getUTCDate()} de ${mes(de)} – ${ate.getUTCDate()} de ${mes(ate)}`;
 }
 
 function Filtro({

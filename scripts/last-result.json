@@ -1,1 +1,1 @@
-[{"marcacoes":0,"tenants":2,"cms_intacto":10,"jobs_de_cron":2}]
+[{"column_name":"id"},{"column_name":"location_id"},{"column_name":"weekday"},{"column_name":"opens_at"},{"column_name":"closes_at"},{"column_name":"created_at"},{"column_name":"updated_at"}]

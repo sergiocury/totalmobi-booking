@@ -2,6 +2,7 @@
 
 import { cn } from '@totalmobi/ui';
 
+import { diaLocal } from './tempo';
 import type { CalendarProps } from './types';
 
 /**
@@ -18,14 +19,21 @@ import type { CalendarProps } from './types';
  *
  * Também não há arrasto. Arrastar num ecrã tátil compete com o scroll, e uma
  * marcação movida por engano com o polegar é pior do que um toque a mais.
+ *
+ * E SERVE TAMBÉM DE VISTA DE SEMANA
+ *
+ * Sete colunas num ecrã de 375 px dão 50 px cada — não cabe uma hora. Em vez de
+ * uma grelha ilegível, a semana é esta mesma lista com um cabeçalho por dia. A
+ * única diferença é o agrupamento; tudo o resto já servia.
  */
-export function AgendaVertical({ timezone, events, onEventClick }: CalendarProps) {
+export function AgendaVertical({ timezone, events, onEventClick, view }: CalendarProps) {
   const ordenados = [...events].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const porDia = view === 'semana';
 
   if (ordenados.length === 0) {
     return (
       <p className="py-10 text-center text-(length:--text-sm) text-(--ink-muted)">
-        Nada marcado neste dia.
+        {porDia ? 'Nada marcado nesta semana.' : 'Nada marcado neste dia.'}
       </p>
     );
   }
@@ -38,10 +46,32 @@ export function AgendaVertical({ timezone, events, onEventClick }: CalendarProps
       hour12: false,
     }).format(d);
 
+  // Um cabeçalho quando o dia muda. Sem isto, a semana seria uma tira de horas
+  // sem se perceber onde acaba a terça e começa a quarta.
+  const cabecalhoDe = (d: Date) =>
+    new Intl.DateTimeFormat('pt-PT', {
+      timeZone: timezone,
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    }).format(d);
+
+  let diaAnterior: string | null = null;
+
   return (
     <ul className="divide-y divide-(--line)">
-      {ordenados.map((evento) => (
+      {ordenados.map((evento) => {
+        const dia = diaLocal(evento.start, timezone);
+        const novoDia = porDia && dia !== diaAnterior;
+        diaAnterior = dia;
+
+        return (
         <li key={evento.id}>
+          {novoDia ? (
+            <h3 className="sticky top-0 z-10 -mx-1 bg-(--surface-sunken) px-3 py-1.5 text-(length:--text-sm) font-medium first-letter:uppercase">
+              {cabecalhoDe(evento.start)}
+            </h3>
+          ) : null}
           <button
             type="button"
             onClick={() => onEventClick?.(evento.id)}
@@ -75,7 +105,8 @@ export function AgendaVertical({ timezone, events, onEventClick }: CalendarProps
             </span>
           </button>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

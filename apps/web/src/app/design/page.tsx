@@ -1,3 +1,4 @@
+import { CalendarioDemo } from './calendario-demo';
 import { ContrastDemo } from './contrast-demo';
 import { ReviewBar } from './review-bar';
 import {
@@ -131,6 +132,19 @@ export default function DesignSystemPage() {
           Validação de contraste
         </h2>
         <ContrastDemo />
+      </section>
+
+      <section className="mb-16">
+        <h2 className="mb-2 text-(length:--text-xl) font-semibold tracking-(--tracking-tight)">
+          Calendário
+        </h2>
+        <p className="mb-5 text-pretty text-(--ink-muted)">
+          As grelhas do dia e da semana, com dados falsos. Estão aqui porque de
+          outro modo só se veriam com sessão iniciada no painel de um cliente —
+          e uma vista que só se revê com dados reais é uma vista que ninguém
+          revê.
+        </p>
+        <CalendarioDemo />
       </section>
 
       <section>

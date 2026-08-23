@@ -711,6 +711,7 @@ da fila de notificações, taxa de falha de entrega WhatsApp por tenant.
 | ADR-5 | TypeScript 5.9 | TS 7.0 (`latest`) | Ecossistema ainda a alinhar num major desta dimensão |
 | ADR-6 | FullCalendar 6.1.x atrás de `CalendarAdapter` | v7 core + plugins v6 | Plugins v7 ainda não publicados; Premium é licença paga |
 | ADR-11 | **Grelha própria** atrás do mesmo `CalendarAdapter`; FullCalendar não instalado | Comprar Premium · usar só o Standard | A vista que o balcão usa todos os dias é Premium — ver abaixo |
+| ADR-12 | Vista de **semana por profissional**, colunas = dias | Semana com a equipa toda · só contagens por dia | 7 dias × N profissionais não cabe; a pergunta real é sempre sobre uma pessoa |
 | ADR-7 | Radix + `packages/ui` próprio | shadcn/ui copiado | O visual por omissão do shadcn é o "dashboard genérico" que o briefing proíbe |
 | ADR-8 | `pg_cron` + Edge Function para a fila | Vercel Cron | Fica junto dos dados, sem depender do plano da Vercel; `SKIP LOCKED` dá paralelismo |
 | ADR-9 | npm workspaces | pnpm / Turborepo | pnpm não está instalado na máquina do Sérgio; 4 pacotes não justificam mais camadas |
@@ -762,6 +763,35 @@ paga sem hesitar quando compra tempo — mas porque **neste caso não comprava
 tempo**: a vista principal teria de ser escrita de qualquer forma, e a agenda de
 telemóvel também (a versão encolhida do desktop não serve num ecrã de 375 px).
 Sobrava pagar uma licença anual pela vista de mês.
+
+### A vista de semana (2026-08-23)
+
+Acrescentada depois do lançamento, a pedido. Custou um ficheiro de grelha e um
+de testes — **nenhuma dependência nova**, que é a confirmação prática de que a
+decisão acima não era só sobre dinheiro.
+
+**As colunas da semana são dias, de uma profissional de cada vez.** Uma coluna
+por profissional × sete dias dariam trinta e cinco colunas; empilhar a equipa
+toda na mesma coluna do dia dá uma mancha ilegível a partir da terceira pessoa.
+A pergunta que a receção faz — *"quando é que a Ana tem espaço na quinta?"* — é
+sempre sobre uma pessoa. Quem quer o retrato do negócio inteiro tem o dia.
+
+As colunas são os dias em que a unidade **abre**, não sete por definição: uma
+casa fechada ao domingo tem seis colunas mais largas em vez de uma vazia.
+
+**O que a semana obrigou a arrumar:**
+
+- As contas de fuso passaram para `adapter/tempo.ts`, partilhadas pelas duas
+  grelhas. Duas cópias da mesma correção de horário de verão seria uma cópia a
+  mais — e é o módulo único de tempo que a tabela de riscos já pedia.
+- O intervalo pedido à base de dados passou a ter folga **dos dois lados**
+  (−12 h, +36 h). Só tinha do fim, e a leste de Greenwich a meia-noite local
+  acontece *antes* das 00:00 UTC — em Lisboa, no verão, às 23:00 do dia
+  anterior. Era um buraco estreito, mas era um buraco.
+- `tempo.ts` **não se reexporta** pelo `index.tsx` do adaptador: esse ficheiro é
+  `'use client'`, e uma página de servidor que importasse dali rebentaria em
+  execução. O `tsc` e o `next build` deixam passar — é erro de fronteira, não de
+  tipos. Foi apanhado a abrir a página, não a compilar.
 
 ### O que isto não fecha
 

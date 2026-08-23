@@ -4,19 +4,48 @@ import { useEffect, useState } from 'react';
 
 import { AgendaVertical } from './agenda-vertical';
 import { GrelhaDia } from './grelha-dia';
+import { GrelhaSemana } from './grelha-semana';
 import type { CalendarProps } from './types';
 
-export type { CalendarEvent, CalendarProps, CalendarRange, CalendarResource } from './types';
+export type {
+  CalendarEvent,
+  CalendarProps,
+  CalendarRange,
+  CalendarResource,
+  CalendarView,
+} from './types';
+
+/**
+ * As funções de `tempo.ts` **não se reexportam daqui**.
+ *
+ * Este ficheiro é `'use client'`. Tudo o que sai por ele fica marcado como
+ * cliente, e uma página de servidor que o importasse rebentaria em execução com
+ * "Attempted to call segundaFeiraDe() from the server". O `tsc` e o `next
+ * build` deixam passar — é um erro de fronteira, não de tipos.
+ *
+ * Quem precisa das contas importa `@/components/calendar/adapter/tempo`
+ * directamente. Continua a ser dentro do adaptador, por isso a fronteira do
+ * calendário mantém-se.
+ */
 
 /**
  * O ponto de entrada do calendário.
  *
- * Escolhe a implementação pela largura do ecrã, e é a única coisa que o resto
- * da aplicação importa. Trocar a grelha própria por FullCalendar — ou por
- * qualquer outra — é mudar este ficheiro e mais nada.
+ * Escolhe a implementação por duas coisas: a **vista** que o utilizador pediu e
+ * a **largura do ecrã**. É a única coisa que o resto da aplicação importa —
+ * trocar as grelhas próprias por FullCalendar, ou por qualquer outra, é mudar
+ * este ficheiro e mais nada.
  *
- * A troca acontece a 768 px e é uma troca de **componente**, não de folha de
- * estilos: a agenda de telemóvel é outra peça, não a mesma com outro CSS.
+ * A troca por largura acontece a 768 px e é uma troca de **componente**, não de
+ * folha de estilos: a agenda de telemóvel é outra peça, não a mesma com outro
+ * CSS.
+ *
+ * NO TELEMÓVEL NÃO HÁ GRELHA DE SEMANA
+ *
+ * Sete colunas num ecrã de 375 px dão 50 px por dia. Não cabe uma hora, quanto
+ * mais um nome. A semana no telemóvel é a mesma lista vertical, com as
+ * marcações agrupadas por dia — a informação é a mesma, a forma é a que cabe.
+ * É o raciocínio que decidiu a agenda de telemóvel no M10, aplicado outra vez.
  */
 export function CalendarAdapter(props: CalendarProps) {
   const [estreito, setEstreito] = useState<boolean | null>(null);
@@ -37,5 +66,7 @@ export function CalendarAdapter(props: CalendarProps) {
     return <div className="h-96 animate-pulse rounded-(--radius-md) bg-(--surface-sunken)" />;
   }
 
-  return estreito ? <AgendaVertical {...props} /> : <GrelhaDia {...props} />;
+  if (estreito) return <AgendaVertical {...props} />;
+
+  return props.view === 'semana' ? <GrelhaSemana {...props} /> : <GrelhaDia {...props} />;
 }

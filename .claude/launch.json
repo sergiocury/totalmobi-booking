@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "booking-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "--workspace",
+        "@totalmobi/web"
+      ],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

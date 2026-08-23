@@ -4,52 +4,49 @@ import { useRef, useState } from 'react';
 
 import { cn } from '@totalmobi/ui';
 
-import { PX_POR_MINUTO, etiquetaHora, instanteDe, minutosDoDia } from './tempo';
+import {
+  PX_POR_MINUTO,
+  diaLocal,
+  diasDesde,
+  etiquetaHora,
+  instanteDe,
+  minutosDoDia,
+} from './tempo';
 import type { CalendarProps } from './types';
 
 /**
- * A grelha do dia, com uma coluna por profissional.
+ * A semana de uma profissional.
  *
- * Escrita de raiz em vez de comprada. O raciocínio está em `ARCHITECTURE.md`;
- * em duas linhas: esta vista é Premium no FullCalendar (480 USD por
- * programador, por ano) e é a única do produto que o Standard não cobre —
- * pagar uma licença anual por uma grelha de CSS que se escreve numa tarde não
- * se justificava.
+ * PORQUE É QUE NÃO SÃO TODAS AO MESMO TEMPO
  *
- * COMO É QUE UM BLOCO SABE ONDE FICAR
+ * A grelha do dia dá uma coluna a cada profissional. Multiplicar isso por sete
+ * dias daria trinta e cinco colunas — a 40 px cada, que é menos do que uma hora
+ * escrita. A alternativa, empilhar toda a gente na mesma coluna do dia,
+ * transforma a semana numa mancha onde não se distingue quem é quem a partir da
+ * terceira pessoa.
  *
- * Não há posicionamento por linha de tabela. Cada bloco é absoluto dentro da
- * coluna, com `top` e `height` calculados a partir dos minutos. É o que permite
- * uma consulta das 10:07 às 10:52 aparecer exatamente aí, em vez de ser
- * arredondada ao slot mais próximo — e marcações com horas partidas existem,
- * porque a agenda também se enche à mão.
+ * A pergunta que esta vista responde é outra e é concreta: **"quando é que a
+ * Ana tem espaço na quinta?"**. Essa pergunta é sempre sobre uma pessoa. Quem
+ * quer o retrato do negócio inteiro tem o dia, onde ele cabe.
  *
- * O ARRASTO REVERTE
+ * O QUE MUDA EM RELAÇÃO AO DIA
  *
- * `onEventMove` devolve uma promessa de booleano. Enquanto ela não resolve, o
- * bloco fica onde o rato o largou; se vier `false`, salta para trás. Isto não é
- * cosmético: a base de dados é a autoridade, e ela pode recusar — outra pessoa
- * pode ter marcado ali nos segundos em que este ecrã esteve a olhar para uma
- * fotografia antiga.
- *
- * As contas de fuso horário vivem em `tempo.ts`, partilhadas com a grelha da
- * semana. Duas cópias da mesma correção de horário de verão seria uma cópia a
- * mais.
+ * Arrastar passa a mover **no tempo e no dia** ao mesmo tempo: a coluna de
+ * destino é uma data, não uma pessoa. A profissional mantém-se — é a mesma em
+ * todas as colunas, por isso o `resourceId` do bloco vai como está.
  */
-
-export function GrelhaDia({
+export function GrelhaSemana({
   date,
   timezone,
   events,
   resources,
   range,
+  days,
   onEmptyClick,
   onEventClick,
   onEventMove,
 }: CalendarProps) {
-  const [aArrastar, setAArrastar] = useState<{ id: string; minuto: number; coluna: string | null } | null>(
-    null,
-  );
+  const [aArrastar, setAArrastar] = useState<string | null>(null);
   const [aGuardar, setAGuardar] = useState<string | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
 
@@ -59,41 +56,56 @@ export function GrelhaDia({
   const linhas: number[] = [];
   for (let m = range.startMinute; m <= range.endMinute; m += 60) linhas.push(m);
 
-  const colunas = resources.length > 0 ? resources : [{ id: '__sem__', title: 'Agenda' }];
+  const colunas = days && days.length > 0 ? days : diasDesde(date, 7);
+
+  // Na semana há uma profissional só. Se a página não escolheu nenhuma, os
+  // blocos não ficam sem dono nem desaparecem — desenham-se à mesma, que é
+  // melhor do que um ecrã vazio sem explicação.
+  const profissional = resources[0] ?? null;
+  const hoje = diaLocal(new Date(), timezone);
 
   function minutoDoRato(clientY: number): number {
     const caixa = areaRef.current?.getBoundingClientRect();
     if (!caixa) return range.startMinute;
 
     const bruto = range.startMinute + (clientY - caixa.top) / PX_POR_MINUTO;
-    // Encaixe na grelha: ninguém quer uma consulta às 10:03.
     const encaixado = Math.round(bruto / range.stepMinutes) * range.stepMinutes;
     return Math.min(Math.max(encaixado, range.startMinute), range.endMinute - range.stepMinutes);
   }
 
-  async function largar(clientY: number, colunaId: string | null) {
+  async function largar(clientY: number, dia: string) {
     if (!aArrastar || !onEventMove) return;
 
     const minuto = minutoDoRato(clientY);
-    const evento = events.find((e) => e.id === aArrastar.id);
+    const evento = events.find((e) => e.id === aArrastar);
     setAArrastar(null);
 
     if (!evento) return;
 
-    const inicioAtual = minutosDoDia(evento.start, timezone);
-    if (minuto === inicioAtual && colunaId === evento.resourceId) return;
+    const mesmoDia = diaLocal(evento.start, timezone) === dia;
+    const mesmaHora = minutosDoDia(evento.start, timezone) === minuto;
+    if (mesmoDia && mesmaHora) return;
 
     setAGuardar(evento.id);
-    await onEventMove(evento.id, instanteDe(date, minuto, timezone), colunaId);
+    await onEventMove(evento.id, instanteDe(dia, minuto, timezone), evento.resourceId);
     setAGuardar(null);
   }
+
+  // Três letras, não o `weekday: 'short'` do Intl: em pt-PT esse devolve
+  // "segunda", que numa coluna de 96 px é cortado a meio e fica igual a
+  // "segunda-feira" truncada. "seg" cabe e lê-se.
+  const nomeDoDia = (dia: string) =>
+    new Intl.DateTimeFormat('pt-PT', { weekday: 'short', timeZone: 'UTC' })
+      .format(new Date(`${dia}T12:00:00Z`))
+      .replace('.', '')
+      .slice(0, 3);
 
   return (
     <div className="overflow-x-auto">
       <div className="flex min-w-fit">
         {/* Régua das horas */}
         <div className="sticky left-0 z-10 w-14 shrink-0 bg-(--surface-sunken)">
-          <div className="h-9" />
+          <div className="h-11" />
           <div className="relative" style={{ height: alturaTotal }}>
             {linhas.map((m) => (
               <span
@@ -108,40 +120,45 @@ export function GrelhaDia({
         </div>
 
         <div className="flex flex-1">
-          {colunas.map((coluna) => {
-            const doProfissional = events.filter((e) =>
-              coluna.id === '__sem__' ? true : e.resourceId === coluna.id,
-            );
+          {colunas.map((dia) => {
+            const doDia = events.filter((e) => diaLocal(e.start, timezone) === dia);
+            const eHoje = dia === hoje;
 
             return (
-              <div key={coluna.id} className="min-w-40 flex-1 border-l border-(--line)">
-                <div className="flex h-9 items-center gap-2 border-b border-(--line) px-2">
-                  {coluna.color ? (
-                    <span
-                      aria-hidden
-                      className="size-2.5 shrink-0 rounded-full"
-                      style={{ background: coluna.color }}
-                    />
-                  ) : null}
-                  <span className="truncate text-(length:--text-sm) font-medium">
-                    {coluna.title}
+              <div key={dia} className="min-w-24 flex-1 border-l border-(--line)">
+                <div
+                  className={cn(
+                    'flex h-11 flex-col justify-center border-b border-(--line) px-2',
+                    eHoje && 'bg-(--surface-sunken)',
+                  )}
+                >
+                  <span className="truncate text-(length:--text-sm) text-(--ink-muted)">
+                    {nomeDoDia(dia)}
+                  </span>
+                  <span
+                    className={cn(
+                      'text-(length:--text-sm) tabular-nums',
+                      eHoje ? 'font-semibold text-(--brand)' : 'font-medium',
+                    )}
+                  >
+                    {Number(dia.slice(8, 10))}
                   </span>
                 </div>
 
                 <div
-                  ref={coluna.id === colunas[0]!.id ? areaRef : undefined}
+                  ref={dia === colunas[0] ? areaRef : undefined}
                   className="relative"
                   style={{ height: alturaTotal }}
                   onPointerUp={(e) => {
-                    void largar(e.clientY, coluna.id === '__sem__' ? null : coluna.id);
+                    void largar(e.clientY, dia);
                   }}
                   onClick={(e) => {
                     if (aArrastar || !onEmptyClick) return;
                     // Só o fundo cria. Um clique num bloco é para o abrir.
                     if (e.target !== e.currentTarget) return;
                     onEmptyClick(
-                      instanteDe(date, minutoDoRato(e.clientY), timezone),
-                      coluna.id === '__sem__' ? null : coluna.id,
+                      instanteDe(dia, minutoDoRato(e.clientY), timezone),
+                      profissional?.id ?? null,
                     );
                   }}
                 >
@@ -154,7 +171,7 @@ export function GrelhaDia({
                     />
                   ))}
 
-                  {doProfissional.map((evento) => {
+                  {doDia.map((evento) => {
                     const inicio = minutosDoDia(evento.start, timezone);
                     const fim = minutosDoDia(evento.end, timezone);
                     const duracao = Math.max(fim - inicio, range.stepMinutes);
@@ -167,14 +184,14 @@ export function GrelhaDia({
                         onPointerDown={(e) => {
                           if (!onEventMove) return;
                           e.currentTarget.releasePointerCapture?.(e.pointerId);
-                          setAArrastar({ id: evento.id, minuto: inicio, coluna: evento.resourceId });
+                          setAArrastar(evento.id);
                         }}
                         className={cn(
-                          'absolute inset-x-1 overflow-hidden rounded-(--radius-sm) border px-2 py-1 text-left text-(length:--text-sm) transition-opacity',
+                          'absolute inset-x-0.5 overflow-hidden rounded-(--radius-sm) border px-1.5 py-0.5 text-left text-(length:--text-sm) transition-opacity',
                           evento.active
                             ? 'border-(--line-strong) bg-(--surface)'
                             : 'border-dashed border-(--line) bg-(--surface-sunken) opacity-60',
-                          aArrastar?.id === evento.id && 'ring-2 ring-(--brand)',
+                          aArrastar === evento.id && 'ring-2 ring-(--brand)',
                           aGuardar === evento.id && 'animate-pulse',
                         )}
                         style={{
@@ -182,10 +199,16 @@ export function GrelhaDia({
                           height: duracao * PX_POR_MINUTO - 2,
                           borderLeft: evento.color ? `3px solid ${evento.color}` : undefined,
                         }}
-                        title={`${etiquetaHora(inicio)}–${etiquetaHora(fim)} · ${evento.title}`}
+                        // A coluna é estreita e o texto é cortado quase sempre.
+                        // O `title` devolve a informação completa sem obrigar a
+                        // abrir a marcação.
+                        title={`${etiquetaHora(inicio)}–${etiquetaHora(fim)} · ${evento.title}${evento.subtitle ? ` · ${evento.subtitle}` : ''}`}
                       >
+                        <span className="block truncate tabular-nums text-(--ink-muted)">
+                          {etiquetaHora(inicio)}
+                        </span>
                         <span className="block truncate font-medium">{evento.title}</span>
-                        {duracao >= 30 && evento.subtitle ? (
+                        {duracao >= 45 && evento.subtitle ? (
                           <span className="block truncate text-(--ink-muted)">
                             {evento.subtitle}
                           </span>

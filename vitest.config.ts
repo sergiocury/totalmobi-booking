@@ -8,7 +8,14 @@ export default defineConfig({
         // máquina, em milissegundos. É onde vive a lógica que mais interessa.
         test: {
           name: 'unit',
-          include: ['packages/*/src/**/*.test.ts', 'packages/*/tests/unit/**/*.test.ts'],
+          include: [
+            'packages/*/src/**/*.test.ts',
+            'packages/*/tests/unit/**/*.test.ts',
+            // Nem toda a lógica pura vive em `packages`. A matemática de fusos
+            // do calendário está na app, e é exatamente o tipo de código que
+            // não se deve testar clicando.
+            'apps/*/src/**/*.test.ts',
+          ],
           environment: 'node',
         },
       },

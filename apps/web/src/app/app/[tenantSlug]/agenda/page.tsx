@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { EmptyState, PageHeader } from '@totalmobi/ui';
 
+import { diasDesde, segundaFeiraDe } from '@/components/calendar/adapter/tempo';
 import { canManage, loadTenantPage } from '@/lib/tenant-context';
 
 import { AgendaClient } from './agenda-client';
@@ -10,22 +11,34 @@ export const metadata = { title: 'Agenda' };
 export const dynamic = 'force-dynamic';
 
 /**
- * A agenda de um dia.
+ * A agenda, ao dia ou à semana.
  *
- * O dia inteiro vem do servidor no primeiro render — não há um esqueleto a
- * piscar seguido de um pedido do browser. Quem abre a agenda de manhã quer
- * vê-la, não vê-la a chegar.
+ * Tudo vem do servidor no primeiro render — não há um esqueleto a piscar
+ * seguido de um pedido do browser. Quem abre a agenda de manhã quer vê-la, não
+ * vê-la a chegar.
  *
- * O intervalo pedido vai das 00:00 UTC do dia até 36 horas depois, de propósito
- * folgado: em fusos a leste de Greenwich o dia local começa antes das 00:00 UTC,
- * e um intervalo justo cortaria as primeiras marcações da manhã.
+ * O INTERVALO É FOLGADO DOS DOIS LADOS
+ *
+ * Pede-se **12 horas antes e 36 depois** do período mostrado. As duas folgas
+ * respondem a problemas diferentes: a leste de Greenwich a meia-noite local
+ * acontece **antes** das 00:00 UTC (em Lisboa, no verão, às 23:00 do dia
+ * anterior), e a oeste o dia local ainda não acabou muito depois das 00:00 UTC
+ * seguintes. Um intervalo justo dos dois lados cortaria marcações nas pontas.
+ *
+ * Antes só havia a folga do fim. Era um buraco estreito — apanhava uma marcação
+ * à meia-noite e meia — mas era um buraco.
  */
 export default async function AgendaPage({
   params,
   searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
-  searchParams: Promise<{ data?: string; unidade?: string }>;
+  searchParams: Promise<{
+    data?: string;
+    unidade?: string;
+    vista?: string;
+    profissional?: string;
+  }>;
 }) {
   const { tenantSlug } = await params;
   const filtros = await searchParams;
@@ -56,10 +69,17 @@ export default async function AgendaPage({
   }
 
   const unidade = unidades.find((u) => u.id === filtros.unidade) ?? unidades[0]!;
+  const vista = filtros.vista === 'semana' ? 'semana' : 'dia';
   const data = filtros.data ?? new Date().toISOString().slice(0, 10);
 
-  const inicio = new Date(`${data}T00:00:00Z`);
-  const fim = new Date(inicio.getTime() + 36 * 3_600_000);
+  // Na semana, a âncora é sempre a segunda-feira. Assim `?data=` pode trazer
+  // qualquer dia — de um link partilhado, do botão "Hoje" — e a vista aterra
+  // sempre no princípio da mesma semana.
+  const ancora = vista === 'semana' ? segundaFeiraDe(data) : data;
+  const quantosDias = vista === 'semana' ? 7 : 1;
+
+  const inicio = new Date(new Date(`${ancora}T00:00:00Z`).getTime() - 12 * 3_600_000);
+  const fim = new Date(inicio.getTime() + (quantosDias * 24 + 48) * 3_600_000);
 
   const [{ data: marcacoes }, { data: equipa }, { data: horas }, { data: serv }, { data: politicas }] =
     await Promise.all([
@@ -77,7 +97,7 @@ export default async function AgendaPage({
         .order('sort_order'),
       context.client
         .from('location_business_hours')
-        .select('opens_at, closes_at')
+        .select('weekday, opens_at, closes_at')
         .eq('location_id', unidade.id),
       context.client
         .from('services')
@@ -103,19 +123,30 @@ export default async function AgendaPage({
   const abre = aberturas.length > 0 ? Math.max(Math.min(...aberturas) - 30, 0) : 8 * 60;
   const fecha = fechos.length > 0 ? Math.min(Math.max(...fechos) + 30, 24 * 60) : 20 * 60;
 
+  // As colunas da semana são os dias em que a casa abre, não sete por
+  // definição. Um cabeleireiro fechado à segunda e ao domingo tem cinco
+  // colunas mais largas em vez de duas vazias a ocupar espaço.
+  const diasAbertos = new Set((horas ?? []).map((h) => h.weekday));
+  const semana = diasDesde(ancora, 7).filter((d) => {
+    if (diasAbertos.size === 0) return true;
+    // `getUTCDay()` ao meio-dia: à meia-noite, um dia com mudança de hora pode
+    // recuar para o anterior.
+    return diasAbertos.has(new Date(`${d}T12:00:00Z`).getUTCDay());
+  });
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-8 sm:py-12">
-      <PageHeader
-        title="Agenda"
-        description={unidades.length > 1 ? unidade.name : undefined}
-      />
+      <PageHeader title="Agenda" description={unidades.length > 1 ? unidade.name : undefined} />
 
       <AgendaClient
         tenantId={context.tenantId}
         tenantSlug={tenantSlug}
         locationId={unidade.id}
         timezone={unidade.timezone}
-        data={data}
+        data={ancora}
+        vista={vista}
+        diasDaSemana={semana}
+        profissionalPedido={filtros.profissional ?? null}
         equipa={(equipa ?? []).map((p) => ({
           id: p.id,
           nome: p.full_name,
