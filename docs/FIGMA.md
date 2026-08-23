@@ -64,13 +64,30 @@ O painel de inspeção mostra a descrição, por isso quem abrir o componente v�
 que escrever. É manual — se o botão mudar no código, muda-se aqui também — e é
 exatamente isso que o Code Connect automatizaria.
 
-**No dia em que o plano subir**, os ficheiros `ComponentName.figma.ts` são
-rápidos de escrever: a skill `figma-code-connect` tem o formato, os componentes
-já existem e as propriedades já estão nomeadas. Falta só a autorização.
+**Decidido a 2026-08-23: não se sobe de plano.** Não é indecisão — é que o
+produto ainda não tem um cliente pagante, e uma subscrição mensal antes da
+primeira venda é custo fixo contra receita zero.
 
-## Três limites do plano Starter que moldaram o resultado
+**O gatilho para reavaliar** não é a vontade, é um facto: quando houver receita
+**e** o Figma for onde o desenho acontece a sério — mais de uma dúzia de
+componentes, ou outra pessoa a desenhar. Com um componente e um ficheiro, o
+plano não se paga. Com vinte componentes e duas pessoas, paga-se no primeiro mês
+em que alguém não implementar um botão errado.
 
-Não são preferências de desenho; são o que o plano deixa fazer.
+Nessa altura os ficheiros `ComponentName.figma.ts` são meia hora de trabalho: a
+skill `figma-code-connect` tem o formato, os componentes existem e as
+propriedades já têm nomes estáveis (`Variante`, `Estado`). Falta só a
+autorização.
+
+## Quatro limites do plano Starter que moldaram o resultado
+
+Não são preferências de desenho; são o que o plano deixa fazer. E ficam assim
+por decisão — ver acima.
+
+**O padrão vale a pena notar:** aqui, no FullCalendar Premium (480 USD/ano) e no
+cron do Vercel Pro, o limite do plano forçou uma solução própria que acabou por
+ser melhor ou igual. Procurar essa saída antes de assumir que o dinheiro é a
+resposta tem sido o hábito certo.
 
 0. **Sem Code Connect** — ver acima. É o que mais custa dos quatro.
 1. **Um modo por coleção** — `addMode` responde *"Limited to 1 modes only"*. O
