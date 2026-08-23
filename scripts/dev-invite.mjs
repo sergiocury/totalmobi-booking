@@ -2,13 +2,24 @@
 /**
  * Convida alguém para um tenant, a partir da linha de comandos.
  *
- *   node scripts/dev-invite.mjs <email> <slug-do-tenant> [papel]
+ *   node scripts/dev-invite.mjs <email> <slug-do-tenant> [papel] [--app=<url>]
  *
  * Existe para exercitar o fluxo de convites sem ter de construir primeiro a UI
  * de gestão de equipa (Milestone 5). Usa exatamente o mesmo caminho que a
  * aplicação: `generateLink` → `/auth/confirm` → `/convite/<id>`.
  *
  * Lê as variáveis de `apps/web/.env.local`, que é onde o Next as procura.
+ *
+ * PORQUE É QUE O `--app` EXISTE
+ *
+ * O `.env.local` tem `NEXT_PUBLIC_APP_URL=http://localhost:3000`, e é isso que
+ * queremos em desenvolvimento. Mas o link do convite **leva o URL lá dentro**:
+ * gerado com o valor do ficheiro, aponta para a máquina de quem o correu, e
+ * quem o receber abre uma página que não existe.
+ *
+ * Não é um detalhe de conveniência. O convite gasta um token de uso único —
+ * abri-lo no sítio errado queima-o, e é preciso gerar outro. Por isso o destino
+ * passa a dizer-se em voz alta em vez de se herdar em silêncio.
  */
 
 import { readFileSync } from 'node:fs';
@@ -25,16 +36,27 @@ function loadEnv() {
 
 loadEnv();
 
-const [email, slug, role = 'tenant_admin'] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+const flagApp = argv.find((a) => a.startsWith('--app='));
+const [email, slug, role = 'tenant_admin'] = argv.filter((a) => !a.startsWith('--'));
 
 if (!email || !slug) {
-  console.error('uso: node scripts/dev-invite.mjs <email> <slug-do-tenant> [papel]');
+  console.error('uso: node scripts/dev-invite.mjs <email> <slug-do-tenant> [papel] [--app=<url>]');
   process.exit(2);
 }
 
 const URL_BASE = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const APP = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+const APP = (flagApp?.slice('--app='.length) ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000')
+  .replace(/\/+$/, '');
+
+// O Supabase só honra o `redirect_to` se ele estiver na lista de permitidos; se
+// não estiver, ignora-o **em silêncio** e usa o Site URL. O link sairia bonito
+// e levaria a outro sítio. Mais vale falhar aqui.
+if (!/^https?:\/\//.test(APP)) {
+  console.error(`--app tem de ser um URL completo (recebido: "${APP}")`);
+  process.exit(2);
+}
 
 const headers = {
   apikey: SERVICE,
@@ -100,6 +122,7 @@ const acceptUrl =
 
 console.log('');
 console.log(`convidado : ${email}`);
+console.log(`destino   : ${APP}`);
 console.log(`empresa   : ${tenant.display_name} (${slug})`);
 console.log(`papel     : ${role}`);
 console.log(`membership: ${membershipId}  (accepted_at = null → sem acesso até aceitar)`);
