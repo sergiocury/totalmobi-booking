@@ -20,6 +20,13 @@ import { marcar, obterHorarios, type SlotPublico } from './actions';
  * Quatro toques mais a escrita. O passo do profissional só custa um toque a
  * quem tem preferência — que é a minoria.
  *
+ * A SECÇÃO QUE APARECE TEM DE SER VISTA
+ *
+ * Escolher a hora revela "Os seus dados" — e num ecrã de telemóvel essa secção
+ * nascia a 918 px com uma janela de 812. Ficava **abaixo da dobra**, e a única
+ * coisa nova à vista era um botão "Confirmar" desativado, sem dizer porquê.
+ * Medido, não suposto. Por isso a revelação leva o ecrã com ela.
+ *
  * A HORA OCUPADA ENTRETANTO NÃO É UM ERRO
  *
  * É uma corrida perdida por segundos, e acontece mesmo: foi para isso que o M8
@@ -108,6 +115,54 @@ export function Marcacao({
   const [aEnviar, iniciarEnvio] = useTransition();
 
   const servico = servicos.find((s) => s.id === servicoId) ?? null;
+
+  /**
+   * Levar o ecrã até ao que acabou de aparecer.
+   *
+   * `block: 'center'` e não `'start'`: a barra de confirmação ocupa o fundo, e
+   * alinhar pelo topo deixava o campo do telemóvel escondido por baixo dela.
+   *
+   * `behavior` respeita quem pediu menos movimento. A regra global dos tokens
+   * cobre CSS, mas um scroll pedido por JavaScript passa-lhe ao lado.
+   */
+  const dadosRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const alvo = dadosRef.current;
+    if (!slot || !alvo) return;
+
+    const visivel = () => {
+      const caixa = alvo.getBoundingClientRect();
+      return caixa.top < window.innerHeight && caixa.bottom > 0;
+    };
+
+    // Já está à vista num ecrã largo? Então mexer no scroll era arrancar a
+    // página debaixo de quem não pediu nada.
+    if (visivel()) return;
+
+    const suave = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    alvo.scrollIntoView({ behavior: suave ? 'smooth' : 'auto', block: 'center' });
+
+    if (!suave) return;
+
+    /**
+     * A rede de segurança.
+     *
+     * `behavior: 'smooth'` **falha em silêncio** em mais sítios do que parece:
+     * separadores em segundo plano, páginas que o browser deixou de compor,
+     * um toque no ecrã a meio do movimento. Quando falha, não há erro — o
+     * scroll simplesmente não acontece, e volta-se ao problema original: o
+     * formulário fica fora do ecrã e o "Confirmar" desativado sem explicação.
+     *
+     * Meio segundo depois, se ainda não estiver à vista, salta-se sem
+     * animação. Feio é melhor do que invisível.
+     */
+    const rede = window.setTimeout(() => {
+      if (!visivel()) alvo.scrollIntoView({ behavior: 'auto', block: 'center' });
+    }, 500);
+
+    return () => window.clearTimeout(rede);
+  }, [slot]);
 
   // A chave de idempotência nasce **antes** do envio e vive enquanto a escolha
   // não muda. Se a rede falhar a meio e a pessoa carregar outra vez, o servidor
@@ -209,7 +264,13 @@ export function Marcacao({
               }}
               aria-pressed={servicoId === s.id}
               className={cn(
-                'flex min-h-11 w-full items-start justify-between gap-4 rounded-(--radius-md) border px-4 py-3 text-left transition-colors',
+                'flex min-h-11 w-full items-start justify-between gap-4 rounded-(--radius-md) border px-4 py-3 text-left',
+                // Propriedades nomeadas e a curva do design system. O
+                // `transition-colors` do Tailwind trazia 150 ms de
+                // `cubic-bezier(0.4, 0, 0.2, 1)` — uma curva que começa devagar,
+                // e o início é exatamente o momento que o dedo está a ver.
+                'transition-[background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-out-soft)',
+                'active:scale-[0.98]',
                 servicoId === s.id
                   ? 'border-(--brand) bg-(--brand-soft)'
                   : 'border-(--line) bg-(--surface) hover:border-(--line-strong)',
@@ -236,7 +297,7 @@ export function Marcacao({
 
       {/* 2. Profissional — "qualquer" primeiro e já escolhido */}
       {servicoId && equipaDoServico.length > 1 ? (
-        <Seccao numero={2} titulo="Com quem">
+        <Seccao numero={2} titulo="Com quem" animar>
           <div className="flex flex-wrap gap-2">
             <Escolha
               activo={staffId === null}
@@ -265,7 +326,7 @@ export function Marcacao({
 
       {/* 3. Dia — fita horizontal, nunca calendário de mês */}
       {servicoId ? (
-        <Seccao numero={equipaDoServico.length > 1 ? 3 : 2} titulo="Quando">
+        <Seccao numero={equipaDoServico.length > 1 ? 3 : 2} titulo="Quando" animar>
           <div
             className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1"
             role="group"
@@ -281,7 +342,9 @@ export function Marcacao({
                 }}
                 aria-pressed={data === d.iso}
                 className={cn(
-                  'flex min-h-16 w-16 shrink-0 flex-col items-center justify-center rounded-(--radius-md) border text-(length:--text-sm) transition-colors',
+                  'flex min-h-16 w-16 shrink-0 flex-col items-center justify-center rounded-(--radius-md) border text-(length:--text-sm)',
+                  'transition-[background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-out-soft)',
+                  'active:scale-[0.96]',
                   data === d.iso
                     ? 'border-(--brand) bg-(--brand-soft) font-medium'
                     : 'border-(--line) bg-(--surface)',
@@ -298,17 +361,43 @@ export function Marcacao({
 
       {/* 4. Hora */}
       {servicoId ? (
-        <Seccao numero={equipaDoServico.length > 1 ? 4 : 3} titulo="A que horas">
+        <Seccao numero={equipaDoServico.length > 1 ? 4 : 3} titulo="A que horas" animar>
           {aCarregar ? (
-            <p className="text-(length:--text-sm) text-(--ink-muted)" role="status">
-              A procurar horas livres…
-            </p>
+            /*
+              Esqueleto com a forma da grelha, não uma linha de texto.
+              Substituir dezanove botões por uma frase encolhia a página de
+              golpe e voltava a crescer meio segundo depois — o conteúdo
+              debaixo do dedo saltava. Um espaço reservado não salta.
+            */
+            <>
+              <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4" aria-hidden>
+                {Array.from({ length: 8 }, (_, i) => (
+                  <li
+                    key={i}
+                    className="min-h-11 animate-pulse rounded-(--radius-sm) bg-(--surface-sunken)"
+                  />
+                ))}
+              </ul>
+              <p className="sr-only" role="status">
+                A procurar horas livres…
+              </p>
+            </>
           ) : horarios.length === 0 ? (
             <p className="text-(length:--text-sm) text-(--ink-muted)">
               {motivo ?? 'Sem horas disponíveis neste dia.'}
             </p>
           ) : (
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+            /*
+              A `key` com o dia e o profissional força o React a refazer a
+              lista quando a escolha muda, em vez de reaproveitar os `<li>` e
+              trocar-lhes o texto por baixo. Sem isso a animação de entrada não
+              voltava a correr, e dezanove horas mudavam de valor de uma vez —
+              o olho lê "piscou", não "atualizou".
+            */
+            <ul
+              key={`${data}-${staffId ?? 'qualquer'}`}
+              className="animar-horas grid grid-cols-3 gap-2 sm:grid-cols-4"
+            >
               {horarios.map((h) => (
                 <li key={h.iso}>
                   <button
@@ -316,7 +405,9 @@ export function Marcacao({
                     onClick={() => setSlot(h)}
                     aria-pressed={slot?.iso === h.iso}
                     className={cn(
-                      'min-h-11 w-full rounded-(--radius-sm) border text-(length:--text-sm) transition-colors',
+                      'min-h-11 w-full rounded-(--radius-sm) border text-(length:--text-sm)',
+                      'transition-[background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-out-soft)',
+                      'active:scale-[0.96]',
                       slot?.iso === h.iso
                         ? 'border-(--brand) bg-(--brand-solid) font-medium text-(--brand-ink)'
                         : 'border-(--line) bg-(--surface) hover:border-(--line-strong)',
@@ -334,7 +425,12 @@ export function Marcacao({
 
       {/* 5. Contactos */}
       {slot ? (
-        <Seccao numero={equipaDoServico.length > 1 ? 5 : 4} titulo="Os seus dados">
+        <Seccao
+          numero={equipaDoServico.length > 1 ? 5 : 4}
+          titulo="Os seus dados"
+          animar
+          ref={dadosRef}
+        >
           <div className="space-y-3">
             <label className="block">
               <span className="mb-1 block text-(length:--text-sm) text-(--ink-muted)">Nome</span>
@@ -391,9 +487,16 @@ export function Marcacao({
         </p>
       ) : null}
 
-      {/* A barra fixa mantém o botão ao alcance do polegar. */}
+      {/*
+        A barra fixa mantém o botão ao alcance do polegar.
+
+        Entra a subir de `translateY(100%)`, por `@starting-style` — sem
+        `useEffect` a marcar `mounted`. Aparecer instantaneamente lê-se como
+        salto; e esta é a peça que carrega a decisão toda, por isso é a que
+        menos pode parecer avaria.
+      */}
       {slot ? (
-        <div className="fixed inset-x-0 bottom-0 border-t border-(--line) bg-(--surface) px-5 py-3">
+        <div className="animar-barra fixed inset-x-0 bottom-0 border-t border-(--line) bg-(--surface) px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto flex max-w-2xl items-center gap-4">
             <div className="min-w-0 flex-1 text-(length:--text-sm)">
               <p className="truncate font-medium">
@@ -426,13 +529,18 @@ function Seccao({
   numero,
   titulo,
   children,
+  animar = false,
+  ref,
 }: {
   numero: number;
   titulo: string;
   children: React.ReactNode;
+  /** Só as secções que aparecem por escolha anterior. A primeira já lá estava. */
+  animar?: boolean;
+  ref?: React.Ref<HTMLElement>;
 }) {
   return (
-    <section>
+    <section ref={ref} className={animar ? 'animar-entrada' : undefined}>
       <h2 className="mb-3 flex items-center gap-2 font-medium">
         <span
           aria-hidden
@@ -462,7 +570,9 @@ function Escolha({
       onClick={onClick}
       aria-pressed={activo}
       className={cn(
-        'min-h-11 rounded-(--radius-full) border px-4 text-(length:--text-sm) transition-colors',
+        'min-h-11 rounded-(--radius-full) border px-4 text-(length:--text-sm)',
+        'transition-[background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-out-soft)',
+        'active:scale-[0.96]',
         activo
           ? 'border-(--brand) bg-(--brand-soft) font-medium'
           : 'border-(--line) bg-(--surface)',

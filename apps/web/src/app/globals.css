@@ -11,3 +11,74 @@
 /* O Tailwind precisa de ver as classes usadas dentro do packages/ui, que vive
    fora da árvore de ficheiros da app. */
 @source '../../../../packages/ui/src';
+
+/* =========================================================================
+   Movimento de entrada
+   =========================================================================
+   Duas utilidades, usadas na marcação pública. Vivem aqui e não em classes
+   soltas do Tailwind porque `@starting-style` não tem equivalente utilitário —
+   e porque é a forma moderna de animar a entrada de um elemento sem um
+   `useEffect` a pôr `mounted: true` a seguir ao primeiro render.
+
+   PORQUE É QUE A MARCAÇÃO PODE TER ANIMAÇÃO E A AGENDA NÃO
+
+   A pergunta certa não é "fica bonito?", é "quantas vezes por dia é que a
+   pessoa vê isto?". A agenda do balcão abre-se dezenas de vezes por dia: lá,
+   animação é atrito. A marcação pública é vista **uma vez** por cada cliente —
+   é o momento de raridade em que o polimento compensa.
+
+   Tudo abaixo de 300 ms, tudo com `ease-out` (começa depressa, responde já), e
+   tudo desligado por `prefers-reduced-motion` na regra global dos tokens.
+   -------------------------------------------------------------------------- */
+
+/* Uma secção que aparece por ter sido desbloqueada pela escolha anterior.
+   Sobe 8 px enquanto ganha opacidade: um elemento que surge do nada, sem
+   deslocamento nenhum, lê-se como falha de render e não como resposta. */
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.animar-entrada {
+  animation: surgir var(--duration-base) var(--ease-out-soft) both;
+}
+
+/* A barra de confirmação.
+
+   `translateY(100%)` e não um valor em píxeis: a percentagem é relativa à
+   altura do próprio elemento, por isso funciona na mesma se a barra crescer
+   com um nome de serviço comprido. */
+.animar-barra {
+  transform: translateY(0);
+  transition:
+    transform var(--duration-slow) var(--ease-out-soft),
+    opacity var(--duration-slow) var(--ease-out-soft);
+  opacity: 1;
+}
+
+@starting-style {
+  .animar-barra {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
+/* Trocar de dia troca a grelha de horas inteira. Sem isto, dezanove botões
+   mudam de valor ao mesmo tempo e o olho lê "piscou", não "atualizou". */
+.animar-horas > li {
+  animation: surgir var(--duration-fast) var(--ease-out-soft) both;
+}
+
+/* Escalonamento curto. Acima de ~80 ms entre elementos a lista passa a
+   parecer lenta em vez de viva; e depois do oitavo ninguém repara, por isso
+   não vale a pena escrever mais regras. */
+.animar-horas > li:nth-child(1) { animation-delay: 0ms; }
+.animar-horas > li:nth-child(2) { animation-delay: 15ms; }
+.animar-horas > li:nth-child(3) { animation-delay: 30ms; }
+.animar-horas > li:nth-child(4) { animation-delay: 45ms; }
+.animar-horas > li:nth-child(5) { animation-delay: 60ms; }
+.animar-horas > li:nth-child(6) { animation-delay: 75ms; }
+.animar-horas > li:nth-child(7) { animation-delay: 90ms; }
+.animar-horas > li:nth-child(n + 8) { animation-delay: 105ms; }
