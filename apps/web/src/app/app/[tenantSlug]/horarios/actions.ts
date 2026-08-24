@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { uuidSchema, wallTimeSchema, weekdaySchema } from '@totalmobi/shared';
+import { alteracaoDoDia, semAlteracao, uuidSchema, wallTimeSchema, weekdaySchema } from '@totalmobi/shared';
 
 import { requireRole } from '@/lib/auth/context';
 import { writeAuditLog } from '@/lib/audit';
@@ -379,6 +379,236 @@ export async function deleteTimeOff(
   const { error } = await guard.value.client.from('staff_time_off').delete().eq('id', id.data);
 
   if (error) return { error: `Não foi possível remover: ${error.message}` };
+
+  revalidatePath(`/app/${tenantSlug}/horarios`);
+  return { ok: true };
+}
+
+
+// =============================================================================
+// Alterar um dia numa semana futura
+// =============================================================================
+
+const dataSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida');
+
+const alterarDiaSchema = z.object({
+  date: dataSchema,
+  /** O horário base efetivo desse dia, tal como a interface o mostrou. */
+  base: z.array(periodoSchema).max(6),
+  /** O que o utilizador quer que passe a ser. Vazio = não trabalha. */
+  desejado: z.array(periodoSchema).max(6),
+});
+
+/**
+ * "Só neste dia."
+ *
+ * Grava a **diferença** entre o horário base e o desejado, como exceções com o
+ * âmbito do profissional. Porque é a diferença e não uma substituição, ver a
+ * nota longa em `packages/shared/src/domain/alterar-dia.ts` — em resumo, o
+ * `closed` de dia inteiro ganha sempre por segurança, e essa regra não se troca
+ * por conveniência de escrita.
+ *
+ * Apaga primeiro as exceções que este profissional já tinha nesta data. Sem
+ * isso, editar o mesmo dia duas vezes empilharia fechos contraditórios e o
+ * resultado dependeria da ordem — que é exatamente o tipo de bug que só aparece
+ * em produção, no dia em que alguém corrige um engano.
+ */
+export async function alterarDiaSo(
+  tenantId: string,
+  tenantSlug: string,
+  staffId: string,
+  locationId: string,
+  entrada: unknown,
+): Promise<ScheduleState> {
+  const guard = await requireRole(tenantId, 'manager');
+  if (!guard.ok) return { error: 'Não tem permissão para alterar horários.' };
+
+  const staff = uuidSchema.safeParse(staffId);
+  const location = uuidSchema.safeParse(locationId);
+  const parsed = alterarDiaSchema.safeParse(entrada);
+
+  if (!staff.success || !location.success || !parsed.success) {
+    return { error: parsed.success ? 'Pedido inválido.' : parsed.error.issues[0]!.message };
+  }
+
+  const alteracao = alteracaoDoDia(parsed.data.base, parsed.data.desejado);
+  const client = guard.value.client;
+
+  const { error: erroApagar } = await client
+    .from('schedule_exceptions')
+    .delete()
+    .eq('tenant_id', tenantId)
+    .eq('staff_id', staff.data)
+    .eq('date', parsed.data.date);
+
+  if (erroApagar) return { error: `Não foi possível guardar: ${erroApagar.message}` };
+
+  // Voltar ao normal é apagar as exceções e não gravar nada. Uma linha vazia
+  // seria uma afirmação sem conteúdo.
+  if (semAlteracao(alteracao)) {
+    revalidatePath(`/app/${tenantSlug}/horarios`);
+    return { ok: true };
+  }
+
+  interface LinhaExcecao {
+    tenant_id: string;
+    location_id: string;
+    staff_id: string;
+    scope_tenant: boolean;
+    date: string;
+    kind: 'closed' | 'open';
+    starts_at: string | null;
+    ends_at: string | null;
+  }
+
+  const linhas: LinhaExcecao[] = alteracao.fecharDiaInteiro
+    ? [
+        {
+          tenant_id: tenantId,
+          location_id: location.data,
+          staff_id: staff.data,
+          scope_tenant: false,
+          date: parsed.data.date,
+          kind: 'closed',
+          starts_at: null,
+          ends_at: null,
+        },
+      ]
+    : [
+        ...alteracao.fechar.map((p): LinhaExcecao => ({
+          tenant_id: tenantId,
+          location_id: location.data,
+          staff_id: staff.data,
+          scope_tenant: false,
+          date: parsed.data.date,
+          kind: 'closed',
+          starts_at: p.startsAt,
+          ends_at: p.endsAt,
+        })),
+        ...alteracao.abrir.map((p): LinhaExcecao => ({
+          tenant_id: tenantId,
+          location_id: location.data,
+          staff_id: staff.data,
+          scope_tenant: false,
+          date: parsed.data.date,
+          kind: 'open',
+          starts_at: p.startsAt,
+          ends_at: p.endsAt,
+        })),
+      ];
+
+  const { error } = await client.from('schedule_exceptions').insert(linhas);
+  if (error) return { error: `Não foi possível guardar: ${error.message}` };
+
+  await writeAuditLog({
+    tenantId,
+    actorUserId: guard.value.user.id,
+    action: 'staff_schedule.day_override',
+    entity: 'staff',
+    entityId: staff.data,
+    actorType: 'user',
+    newValues: { date: parsed.data.date, excecoes: linhas.length },
+  });
+
+  revalidatePath(`/app/${tenantSlug}/horarios`);
+  return { ok: true };
+}
+
+const partirDeSchema = z.object({
+  /** A partir de que dia o novo padrão vale. `YYYY-MM-DD`. */
+  from: dataSchema,
+  dias: z.array(diaSchema).max(7),
+});
+
+/**
+ * "A partir daqui, sempre."
+ *
+ * Não apaga o passado. Fecha o padrão em vigor com `valid_until` no dia
+ * anterior e abre um novo com `valid_from` — que é o que permite responder
+ * corretamente a "que horário tinha a Ana em março?" depois de ela mudar de
+ * horário em abril.
+ *
+ * As colunas `valid_from` e `valid_until` existem desde o primeiro dia e o
+ * motor já as respeita (`isHoursValidOn`). O que faltava era alguém escrevê-las:
+ * das 214 linhas em base, zero as usavam. Era uma capacidade construída e nunca
+ * ligada.
+ */
+export async function definirHorarioAPartirDe(
+  tenantId: string,
+  tenantSlug: string,
+  staffId: string,
+  locationId: string,
+  entrada: unknown,
+): Promise<ScheduleState> {
+  const guard = await requireRole(tenantId, 'manager');
+  if (!guard.ok) return { error: 'Não tem permissão para alterar horários.' };
+
+  const staff = uuidSchema.safeParse(staffId);
+  const location = uuidSchema.safeParse(locationId);
+  const parsed = partirDeSchema.safeParse(entrada);
+
+  if (!staff.success || !location.success || !parsed.success) {
+    return { error: parsed.success ? 'Pedido inválido.' : parsed.error.issues[0]!.message };
+  }
+
+  const sobreposto = encontrarSobreposicao(parsed.data.dias);
+  if (sobreposto) return { error: sobreposto };
+
+  const client = guard.value.client;
+  const vespera = new Date(`${parsed.data.from}T12:00:00Z`);
+  vespera.setUTCDate(vespera.getUTCDate() - 1);
+  const ate = vespera.toISOString().slice(0, 10);
+
+  // O padrão que estava em vigor passa a acabar na véspera. Só os que ainda não
+  // tinham fim — mexer nos que já têm seria reescrever história.
+  const { error: erroFechar } = await client
+    .from('staff_working_hours')
+    .update({ valid_until: ate })
+    .eq('staff_id', staff.data)
+    .eq('location_id', location.data)
+    .is('valid_until', null);
+
+  if (erroFechar) return { error: `Não foi possível guardar: ${erroFechar.message}` };
+
+  // Um padrão que já começava depois desta data seria substituído por este —
+  // apaga-se, porque manter dois padrões a começar no mesmo dia é ambíguo.
+  const { error: erroLimpar } = await client
+    .from('staff_working_hours')
+    .delete()
+    .eq('staff_id', staff.data)
+    .eq('location_id', location.data)
+    .gte('valid_from', parsed.data.from);
+
+  if (erroLimpar) return { error: `Não foi possível guardar: ${erroLimpar.message}` };
+
+  const linhas = parsed.data.dias.flatMap((dia) =>
+    dia.periods.map((p) => ({
+      staff_id: staff.data,
+      location_id: location.data,
+      weekday: dia.weekday,
+      starts_at: p.startsAt,
+      ends_at: p.endsAt,
+      valid_from: parsed.data.from,
+      valid_until: null,
+    })),
+  );
+
+  if (linhas.length > 0) {
+    const { error } = await client.from('staff_working_hours').insert(linhas);
+    if (error) return { error: `Não foi possível guardar: ${error.message}` };
+  }
+
+  await writeAuditLog({
+    tenantId,
+    actorUserId: guard.value.user.id,
+    action: 'staff_schedule.pattern_from',
+    entity: 'staff',
+    entityId: staff.data,
+    actorType: 'user',
+    newValues: { from: parsed.data.from, periodos: linhas.length },
+  });
 
   revalidatePath(`/app/${tenantSlug}/horarios`);
   return { ok: true };
