@@ -82,3 +82,90 @@
 .animar-horas > li:nth-child(6) { animation-delay: 75ms; }
 .animar-horas > li:nth-child(7) { animation-delay: 90ms; }
 .animar-horas > li:nth-child(n + 8) { animation-delay: 105ms; }
+
+/* =========================================================================
+   Landing pública
+   =========================================================================
+   O movimento aqui existe para explicar o produto, não para o decorar. Quem
+   chega à página não sabe o que isto faz; ver uma mensagem tornar-se uma
+   marcação explica melhor do que qualquer parágrafo.
+
+   Continua tudo abaixo dos 300 ms e tudo com `ease-out`, e a regra global de
+   `prefers-reduced-motion` nos tokens desliga-o por inteiro.
+   -------------------------------------------------------------------------- */
+
+/* Aparecer ao entrar no ecrã. O estado inicial vive na classe e é o JavaScript
+   que acrescenta `.visivel` — por isso, sem JavaScript, o conteúdo aparece na
+   mesma: a regra `@media (scripting: none)` devolve-o. */
+.revelar {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity var(--duration-slow) var(--ease-out-soft),
+    transform var(--duration-slow) var(--ease-out-soft);
+}
+
+.revelar.visivel {
+  opacity: 1;
+  transform: none;
+}
+
+@media (scripting: none) {
+  .revelar {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Uma bolha de conversa a chegar. Sobe pouco e depressa — uma mensagem que
+   demora a assentar parece uma ligação lenta, não uma animação. */
+@keyframes bolha-entra {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+.bolha {
+  animation: bolha-entra var(--duration-base) var(--ease-out-soft) both;
+}
+
+/* Os três pontos de "está a escrever". */
+@keyframes pontinho {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.pontinho {
+  animation: pontinho 1.2s ease-in-out infinite;
+}
+
+.pontinho:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.pontinho:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* O bloco que aparece no calendário quando a marcação é criada. Vem de baixo e
+   de leve, como a barra de confirmação da marcação pública — é a mesma ideia
+   e vale a pena parecer a mesma coisa. */
+@keyframes marcacao-entra {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+}
+
+.marcacao-nova {
+  animation: marcacao-entra var(--duration-slow) var(--ease-out-soft) both;
+}
