@@ -24,6 +24,7 @@ import {
   setStaffHours,
   type ScheduleState,
 } from './actions';
+import { FitaSemanas } from './fita-semanas';
 import { WeekEditor, type DiaSemana } from './week-editor';
 
 interface Location {
@@ -48,6 +49,8 @@ interface StaffHour {
   weekday: number;
   starts_at: string;
   ends_at: string;
+  valid_from?: string | null;
+  valid_until?: string | null;
 }
 interface Exception {
   id: string;
@@ -382,6 +385,59 @@ export function SchedulesManager({
                       }
                       saveLabel={`Guardar horário de ${nomeStaff(staffId).split(' ')[0]}`}
                     />
+
+                    {/*
+                      O editor acima diz o que é normal; a fita diz o que vai
+                      acontecer. Uma clínica que marca com dois meses de
+                      antecedência precisa das duas coisas, e a segunda não cabe
+                      numa grelha de sete dias sem data.
+                    */}
+                    <div className="mt-8 border-t border-(--line) pt-6">
+                      <h3 className="mb-1 font-medium">Próximas semanas</h3>
+                      <p className="mb-4 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
+                        O horário efetivo de cada dia, já com ausências e exceções. Clique num dia
+                        para o alterar só nesse dia, ou a partir dele.
+                      </p>
+
+                      <FitaSemanas
+                        key={`${staffId}-${locationId}`}
+                        tenantId={tenantId}
+                        tenantSlug={tenantSlug}
+                        staffId={staffId}
+                        staffNome={nomeStaff(staffId)}
+                        locationId={locationId}
+                        timezone={unidade.timezone}
+                        locationHours={locationHours
+                          .filter((h) => h.location_id === locationId)
+                          .map((h) => ({
+                            weekday: h.weekday,
+                            startsAt: hhmm(h.opens_at),
+                            endsAt: hhmm(h.closes_at),
+                          }))}
+                        staffHours={staffHours
+                          .filter((h) => h.staff_id === staffId && h.location_id === locationId)
+                          .map((h) => ({
+                            weekday: h.weekday,
+                            startsAt: hhmm(h.starts_at),
+                            endsAt: hhmm(h.ends_at),
+                            validFrom: h.valid_from ?? null,
+                            validUntil: h.valid_until ?? null,
+                          }))}
+                        excecoes={exceptions.map((e) => ({
+                          date: e.date,
+                          kind: e.kind === 'open' ? ('open' as const) : ('closed' as const),
+                          starts_at: e.starts_at ? hhmm(e.starts_at) : null,
+                          ends_at: e.ends_at ? hhmm(e.ends_at) : null,
+                          staff_id: e.staff_id,
+                          scope_tenant: e.scope_tenant,
+                          location_id: e.location_id,
+                        }))}
+                        ausencias={timeOff
+                          .filter((a) => a.staff_id === staffId)
+                          .map((a) => ({ startsAt: a.starts_at, endsAt: a.ends_at, kind: a.kind }))}
+                        canManage={canManage}
+                      />
+                    </div>
                   </>
                 ) : (
                   <p className="text-(length:--text-sm) text-(--ink-muted)">

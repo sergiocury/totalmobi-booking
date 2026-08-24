@@ -452,11 +452,24 @@ export async function alterarDiaSo(
     return { ok: true };
   }
 
+  /**
+   * O âmbito é exclusivo, e a base de dados obriga.
+   *
+   * A restrição `schedule_exception_scope` aceita exatamente uma de três
+   * formas: tenant (sem unidade nem pessoa), unidade (sem pessoa), ou pessoa
+   * (sem unidade). Escrevi isto com `location_id` **e** `staff_id` preenchidos
+   * e a base recusou — teria falhado em cada gravação.
+   *
+   * A consequência vale a pena saber: uma exceção de pessoa **não** está presa
+   * a uma unidade. "A Ana faz das 10 às 12 nesta quinta" vale para ela em
+   * qualquer unidade onde trabalhe — o que é o correto, porque ninguém está em
+   * dois sítios ao mesmo tempo.
+   */
   interface LinhaExcecao {
     tenant_id: string;
-    location_id: string;
+    location_id: null;
     staff_id: string;
-    scope_tenant: boolean;
+    scope_tenant: false;
     date: string;
     kind: 'closed' | 'open';
     starts_at: string | null;
@@ -467,7 +480,7 @@ export async function alterarDiaSo(
     ? [
         {
           tenant_id: tenantId,
-          location_id: location.data,
+          location_id: null,
           staff_id: staff.data,
           scope_tenant: false,
           date: parsed.data.date,
@@ -479,7 +492,7 @@ export async function alterarDiaSo(
     : [
         ...alteracao.fechar.map((p): LinhaExcecao => ({
           tenant_id: tenantId,
-          location_id: location.data,
+          location_id: null,
           staff_id: staff.data,
           scope_tenant: false,
           date: parsed.data.date,
@@ -489,7 +502,7 @@ export async function alterarDiaSo(
         })),
         ...alteracao.abrir.map((p): LinhaExcecao => ({
           tenant_id: tenantId,
-          location_id: location.data,
+          location_id: null,
           staff_id: staff.data,
           scope_tenant: false,
           date: parsed.data.date,

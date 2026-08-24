@@ -76,13 +76,18 @@ export default async function SchedulesPage({
         .from('staff_working_hours')
         .select('id, staff_id, location_id, weekday, starts_at, ends_at, valid_from, valid_until')
         .in('location_id', idsUnidades),
+      // Doze semanas para a frente: é o que a fita mostra, e um limite fixo de
+      // 50 linhas cortava-a em silêncio numa clínica com muitas ausências.
       context.client
         .from('schedule_exceptions')
         .select('id, date, kind, starts_at, ends_at, reason, scope_tenant, location_id, staff_id')
         .eq('tenant_id', context.tenantId)
         .gte('date', new Date().toISOString().slice(0, 10))
-        .order('date')
-        .limit(50),
+        .lte(
+          'date',
+          new Date(Date.now() + 84 * 86_400_000).toISOString().slice(0, 10),
+        )
+        .order('date'),
       context.client
         .from('staff_time_off')
         .select('id, staff_id, starts_at, ends_at, kind, reason')
