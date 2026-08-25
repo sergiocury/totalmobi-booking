@@ -61,7 +61,7 @@ https://booking.totalmobi.pt/api/stripe/webhook
 Os eventos a subscrever são os que o endpoint trata:
 
 ```
-checkout.session.completed
+checkout.session.completed      ← é este que cria a empresa
 customer.subscription.created
 customer.subscription.updated
 customer.subscription.deleted
@@ -69,8 +69,39 @@ invoice.paid
 invoice.payment_failed
 ```
 
+**O primeiro não é opcional.** É de `checkout.session.completed` que a empresa
+nasce: significa «pagou», traz o identificador da subscrição, e a subscrição
+traz os metadados do registo. Os `customer.subscription.*` servem para o que
+vem depois — renovações, cancelamentos, falhas de pagamento.
+
+Nem sempre foi assim, e a mudança custou uma compra a sério. O código deixava
+`checkout.session.completed` passar em branco, à espera de
+`customer.subscription.created`, com um comentário a garantir que esse «chega
+logo a seguir». Chega — se estiver selecionado. Não estava. O resultado foi um
+cliente pago, um webhook a responder 200 a tudo, e nenhuma empresa criada: **um
+200 é pior do que um 500 aqui**, porque um erro teria sido reenviado e um
+sucesso falso não.
+
+A lição não é «selecionar melhor os eventos». É que um pressuposto sobre
+configuração remota não pode viver só num comentário.
+
 Qualquer outro evento é registado como `ignored` e não faz mal nenhum — mas
 subscrever só estes poupa entregas.
+
+### Reprocessar uma compra que ficou por provisionar
+
+A idempotência é a chave primária de `stripe_webhook_events`. Um reenvio do
+mesmo evento bate na chave duplicada e responde 200 **sem processar** — o que é
+o comportamento certo, exceto depois de se corrigir um erro que fez o evento
+«ter sucesso» sem fazer nada.
+
+Nesse caso, apagar a linha e reenviar pelo painel do Stripe:
+
+```sql
+delete from booking.stripe_webhook_events where id = 'evt_...';
+```
+
+O Stripe guarda o evento; a linha volta a nascer no reenvio.
 
 Para testar localmente, o Stripe tem uma CLI que reencaminha os eventos para
 `localhost` e imprime um `whsec_` próprio dessa sessão. Ver a documentação
