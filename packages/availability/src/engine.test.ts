@@ -553,16 +553,43 @@ describe('o orçamento de tempo', () => {
       '2026-08-23',
     ];
 
-    const inicio = performance.now();
-    for (const date of dias) {
-      getAvailableSlots(entrada({ date, staff: equipa, policy: {
-        slotGranularityMinutes: 15,
-        minAdvanceMinutes: 60,
-        maxAdvanceDays: 90,
-      } }));
-    }
-    const decorrido = performance.now() - inicio;
+    const semana = () => {
+      for (const date of dias) {
+        getAvailableSlots(entrada({ date, staff: equipa, policy: {
+          slotGranularityMinutes: 15,
+          minAdvanceMinutes: 60,
+          maxAdvanceDays: 90,
+        } }));
+      }
+    };
 
-    expect(decorrido).toBeLessThan(50);
+    /**
+     * O melhor de seis, não a primeira medição.
+     *
+     * Um cronómetro único com limite rígido não mede só o motor: mede também o
+     * que mais estiver a correr na máquina. Este teste falhou duas vezes em
+     * 25/08, ambas em corridas que partilharam o portátil com um `next build`,
+     * e passou em todas as outras. Um teste que falha por causa de um processo
+     * vizinho ensina a ignorar falhas — o pior hábito que uma suite pode criar.
+     *
+     * O mínimo é o estimador certo para «quão depressa isto consegue ser»:
+     * preempção do escalonador, recolha de lixo e compilação só acrescentam
+     * tempo, nunca o tiram. Uma regressão a sério — o dobro, dez vezes mais —
+     * aparece no mínimo tal como aparecia numa medição única. Um vizinho
+     * ocupado não.
+     *
+     * A primeira volta é aquecimento e não conta: mede o compilador a chegar ao
+     * código, não o código.
+     */
+    semana();
+
+    let melhor = Infinity;
+    for (let i = 0; i < 6; i += 1) {
+      const inicio = performance.now();
+      semana();
+      melhor = Math.min(melhor, performance.now() - inicio);
+    }
+
+    expect(melhor).toBeLessThan(50);
   });
 });
