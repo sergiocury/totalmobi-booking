@@ -162,13 +162,24 @@ linhas.
 
 ---
 
-## O IVA está por decidir
+## O IVA está incluído no preço
 
-Um SaaS vendido em Portugal emite com IVA, e a empresas de outros países da UE
-com número de contribuinte aplica-se autoliquidação. A rota de checkout já
-recolhe morada de faturação e número de contribuinte, mas **não há regime fiscal
-configurado**. É uma decisão de contabilidade, não de programação, e tem de
-estar tomada antes de sair do modo de teste.
+Decisão tomada em 2026-08-25: **29 €, 49 € e 79 € são o que o cliente paga, com
+IVA já lá dentro.** Não se acrescenta nada em cima no checkout.
+
+Em termos de programação isto quer dizer *não fazer nada*: a rota de checkout
+não usa `automatic_tax`, por isso o Stripe cobra exatamente o valor do preço. O
+que muda é o que se escreve ao lado do número — dizer «sem IVA» e cobrar o
+mesmo valor seria anunciar um preço e cobrar outro.
+
+A rota continua a recolher morada de faturação e número de contribuinte, que
+são precisos na fatura de qualquer maneira.
+
+**O que fica por tratar, e não é código:** a fatura tem de mostrar a decomposição
+da base e do imposto, e a venda a empresas de outros países da UE com número de
+contribuinte válido leva autoliquidação — nesses casos o valor com IVA português
+incluído deixa de estar certo. Enquanto as vendas forem em Portugal, o preço
+único resolve. É conversa de contabilidade antes de vender lá fora.
 
 ---
 

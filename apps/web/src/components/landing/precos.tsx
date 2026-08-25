@@ -94,7 +94,8 @@ export function Precos() {
         </div>
 
         <p className="mt-10 text-center text-(length:--text-sm) text-(--ink-subtle)">
-          Preços sem IVA. A página pública de marcação está incluída em todos os planos.
+          IVA incluído — é este o valor que paga. A página pública de marcação está incluída em
+          todos os planos.
         </p>
       </div>
     </section>

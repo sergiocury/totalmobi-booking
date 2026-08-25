@@ -716,6 +716,27 @@ da fila de notificações, taxa de falha de entrega WhatsApp por tenant.
 | ADR-8 | `pg_cron` + Edge Function para a fila | Vercel Cron | Fica junto dos dados, sem depender do plano da Vercel; `SKIP LOCKED` dá paralelismo |
 | ADR-9 | npm workspaces | pnpm / Turborepo | pnpm não está instalado na máquina do Sérgio; 4 pacotes não justificam mais camadas |
 | ADR-10 | Cliente final sem conta | Auth para todos | Fricção mata conversão; links tokenizados chegam |
+| ADR-13 | **`preparacao()` em `shared`** decide se uma empresa aceita marcações | Cada página com o seu critério | O painel e a página pública têm de concordar; divergirem é o pior erro possível |
+
+### ADR-13 — uma definição de «pronta para marcar»
+
+A porta da página pública era `serviços > 0 && unidade`. Passava-a uma clínica
+sem ninguém a executar o serviço, ou sem horários — e o visitante via o
+formulário aberto, escolhia um serviço, e nunca recebia uma hora. **Um
+formulário que não devolve nada parece avariado; um aviso honesto parece por
+abrir**, que é a verdade.
+
+O painel do dono tinha um critério diferente do seu lado: contava unidades,
+serviços e equipa, e não olhava para horários. Podia portanto dizer «está tudo
+configurado» sobre uma empresa cuja página não conseguia marcar nada.
+
+`preparacao(sinais)` é a única definição, e devolve os cinco passos com o que
+falta. A página pública usa-a para decidir a porta; o painel usa-a para dizer o
+que fazer a seguir e por que ordem.
+
+Este projeto já pagou por duas definições da mesma coisa uma vez: na fita das
+semanas, a barra de resumo contava seis dias alterados enquanto a grelha
+desenhava cinco. A correção foi idêntica — uma função, dois consumidores.
 
 ---
 

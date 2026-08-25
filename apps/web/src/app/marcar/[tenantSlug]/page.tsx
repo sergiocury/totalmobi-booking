@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { createAnonClient, getPublicTenantBySlug } from '@totalmobi/database';
+import { preparacao } from '@totalmobi/shared';
 
 import { resolveBranding } from '@/lib/branding';
 
@@ -57,16 +58,38 @@ async function carregar(slug: string) {
       .order('sort_order'),
   ]);
 
-  const { data: ligacoes } = await client
-    .from('staff_services')
-    .select('staff_id, service_id')
-    .eq('is_active', true);
+  /*
+   * As duas contagens que decidem se esta página abre.
+   *
+   * `ligacoes` filtra por empresa através de `staff`. Antes não filtrava por
+   * nada: trazia as ligações de **todos** os clientes visíveis e escolhia as
+   * certas em JavaScript. O resultado estava certo — a RLS não deixa ver o que
+   * não é público, e o cruzamento por ids fazia o resto — mas o tamanho da
+   * resposta crescia com cada cliente novo, numa página que é a mais visitada
+   * do produto.
+   *
+   * `horarios` é uma contagem, não uma leitura: aqui só interessa saber se
+   * existe pelo menos um. As horas concretas são trabalho do motor de
+   * disponibilidade, e esse já as vai buscar quando alguém escolhe um serviço.
+   */
+  const [{ data: ligacoes }, { count: horarios }] = await Promise.all([
+    client
+      .from('staff_services')
+      .select('staff_id, service_id, staff!inner(tenant_id)')
+      .eq('staff.tenant_id', perfil.value.tenant.id)
+      .eq('is_active', true),
+    client
+      .from('staff_working_hours')
+      .select('id, staff!inner(tenant_id)', { count: 'exact', head: true })
+      .eq('staff.tenant_id', perfil.value.tenant.id),
+  ]);
 
   return {
     perfil: perfil.value,
     servicos: servicos ?? [],
     equipa: equipa ?? [],
     ligacoes: ligacoes ?? [],
+    horarios: horarios ?? 0,
   };
 }
 
@@ -116,7 +139,26 @@ export default async function PaginaPublica({
   // os filtrou; distingui-los aqui diria a quem perguntasse quais existem.
   if (!dados) notFound();
 
-  const { perfil, servicos, equipa, ligacoes } = dados;
+  const { perfil, servicos, equipa, ligacoes, horarios } = dados;
+
+  /*
+   * A porta desta página.
+   *
+   * Era `servicos.length === 0 || !unidade`. Não chegava: uma clínica com
+   * unidade e serviço mas sem ninguém que o execute, ou sem horários, passava
+   * na porta, via o formulário aberto — e nunca recebia uma hora. Um formulário
+   * que não devolve nada parece avariado; um aviso honesto parece por abrir, e
+   * é a verdade.
+   *
+   * A mesma função corre no painel do dono, onde diz exatamente o que falta.
+   */
+  const estado = preparacao({
+    unidades: perfil.locations.length,
+    servicos: servicos.length,
+    profissionais: equipa.length,
+    ligacoes: ligacoes.length,
+    horarios,
+  });
   const branding = resolveBranding({
     primaryColor: perfil.branding.primary_color,
     secondaryColor: perfil.branding.secondary_color,
@@ -160,7 +202,7 @@ export default async function PaginaPublica({
         </header>
 
         <main className="mx-auto max-w-2xl px-5 py-6 pb-24">
-          {servicos.length === 0 || !unidade ? (
+          {!estado.pronta || !unidade ? (
             <div className="rounded-(--radius-md) border border-(--line) bg-(--surface) px-5 py-8 text-center">
               <p className="font-medium">Marcação online indisponível</p>
               <p className="mt-1 text-(length:--text-sm) text-(--ink-muted)">
