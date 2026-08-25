@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react';
 import { Button, cn } from '@totalmobi/ui';
 
 const SECCOES = [
+  { href: '#link-publico', rotulo: 'Link público' },
   { href: '#como-funciona', rotulo: 'Como funciona' },
-  { href: '#white-label', rotulo: 'A sua marca' },
   { href: '#demonstracao', rotulo: 'Demonstração' },
   { href: '#perguntas', rotulo: 'Perguntas' },
 ];

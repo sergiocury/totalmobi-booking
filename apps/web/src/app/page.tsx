@@ -5,6 +5,7 @@ import { Button } from '@totalmobi/ui';
 
 import { Cabecalho } from '@/components/landing/cabecalho';
 import { DemoConversa } from '@/components/landing/demo-conversa';
+import { DemoLinkPublico } from '@/components/landing/demo-link-publico';
 import { Revelar } from '@/components/landing/revelar';
 
 /**
@@ -40,9 +41,9 @@ import { Revelar } from '@/components/landing/revelar';
 const URL_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://booking.totalmobi.pt';
 
 export const metadata: Metadata = {
-  title: 'Totalmobi Booking — marcações no seu site, geridas por IA',
+  title: 'Totalmobi Booking — marcações por WhatsApp, website e IA',
   description:
-    'Um sistema de marcações com a sua marca, dentro do seu site. Os clientes marcam por WhatsApp ou online, a IA interpreta o pedido, confirma o horário e envia os lembretes.',
+    'Receba marcações pelo WhatsApp, pelo seu website ou pela sua própria página pública de agendamento. Automatize confirmações, lembretes e a gestão da agenda de toda a equipa.',
   alternates: { canonical: URL_BASE },
   // O layout põe o site inteiro fora dos motores de busca, e bem: o painel e as
   // páginas de marcação de cada cliente não têm nada que ser indexados. A
@@ -53,14 +54,14 @@ export const metadata: Metadata = {
     locale: 'pt_PT',
     url: URL_BASE,
     siteName: 'Totalmobi Booking',
-    title: 'Marcações no seu site, geridas por IA',
+    title: 'Marcações por WhatsApp, website e link público',
     description:
-      'Um sistema de marcações com a sua marca, dentro do seu site. Os clientes marcam por WhatsApp ou online e a agenda responde sozinha.',
+      'Receba marcações onde os seus clientes já estão: WhatsApp, o seu website, ou um link que partilha no Instagram, no Google e onde quiser.',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Totalmobi Booking',
-    description: 'Marcações no seu site, geridas por IA.',
+    description: 'Marcações por WhatsApp, website e link público.',
   },
 };
 
@@ -72,6 +73,7 @@ export default function LandingPage() {
       <main>
         <Hero />
         <WhiteLabel />
+        <LinkPublico />
         <ComoFunciona />
         <Canais />
         <Demonstracao />
@@ -102,7 +104,7 @@ function Hero() {
       */}
       <Revelar className="mx-auto max-w-3xl text-center">
         <p className="mb-4 inline-flex items-center gap-2 rounded-(--radius-full) border border-(--line) bg-(--surface-sunken) px-3 py-1 text-(length:--text-sm) text-(--ink-muted)">
-          White label · WhatsApp · IA
+          WhatsApp · Website · Link público · IA
         </p>
 
         <h1 className="text-(length:--text-4xl) leading-(--leading-tight) font-semibold tracking-(--tracking-tighter) text-balance sm:text-(length:--text-5xl)">
@@ -110,10 +112,11 @@ function Hero() {
         </h1>
 
         <p className="mx-auto mt-5 max-w-2xl text-(length:--text-lg) leading-(--leading-normal) text-pretty text-(--ink-muted)">
-          Um sistema de marcações{' '}
-          <strong className="font-medium text-(--ink)">com a sua marca</strong>, dentro do site que
-          já tem. O cliente escolhe o serviço, encontra um horário e confirma — mesmo quando não há
-          ninguém para atender.
+          Marcações pelo <strong className="font-medium text-(--ink)">WhatsApp</strong>, pelo{' '}
+          <strong className="font-medium text-(--ink)">seu website</strong> ou pela sua{' '}
+          <strong className="font-medium text-(--ink)">própria página pública</strong>. O cliente
+          escolhe o serviço, encontra um horário e confirma — mesmo quando não há ninguém para
+          atender.
         </p>
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
@@ -126,7 +129,7 @@ function Hero() {
         </div>
 
         <p className="mt-5 text-(length:--text-sm) text-(--ink-subtle)">
-          Sem mudar de site · Sem aplicações para o cliente instalar
+          Funciona mesmo que não tenha website · Sem aplicações para o cliente instalar
         </p>
       </Revelar>
 
@@ -162,7 +165,7 @@ function WhiteLabel() {
       // que não está implementado. Uma promessa que o produto não cumpre é pior
       // do que uma funcionalidade a menos: descobre-se na primeira reunião.
       texto:
-        'booking.totalmobi.pt/aminhaclinica — para pôr na bio do Instagram, no botão do Facebook ou num QR ao balcão. A página é sua; o endereço é nosso, e isso vê-se só no link.',
+        'booking.totalmobi.pt/aminhaclinica — para pôr na bio do Instagram, no botão do Facebook ou na sua assinatura de email. A página é sua; o endereço é nosso, e isso vê-se só no link.',
     },
   ];
 
@@ -215,6 +218,75 @@ function WhiteLabel() {
               </span>
             </div>
           </div>
+        </Revelar>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * O link público.
+ *
+ * PORQUE É QUE ISTO É UMA SECÇÃO E NÃO UMA LINHA
+ *
+ * A objeção mais comum de um salão ou de um consultório pequeno é *"eu não
+ * tenho site"*. Enquanto a proposta for "integramos no seu website", metade do
+ * mercado ouve "isto não é para mim" e fecha a página.
+ *
+ * O link resolve isso, e resolve-o melhor do que um site: quem vem do Instagram
+ * ou do Google já está a um toque de distância. Por isso vem cedo, com uma
+ * demonstração própria, e não como um item numa lista de funcionalidades.
+ *
+ * O QR não está aqui. Partilhar o link num QR é possível — qualquer ferramenta
+ * o faz — mas o produto não o gera, e listá-lo ao lado das outras opções leria-se
+ * como se gerasse.
+ */
+function LinkPublico() {
+  const sitios = [
+    { onde: 'Instagram', como: 'Na bio: «Marque a sua consulta ↓»' },
+    { onde: 'Facebook', como: 'No botão «Marcar agora» da página' },
+    { onde: 'Google', como: 'Como link de marcação no perfil da empresa' },
+    { onde: 'WhatsApp', como: 'Enviado numa conversa, quando alguém pergunta' },
+    { onde: 'Email', como: 'Na assinatura, em todas as mensagens que envia' },
+    { onde: 'Campanhas', como: 'Em anúncios, stories e emails promocionais' },
+  ];
+
+  return (
+    <section id="link-publico" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+      <Revelar className="mx-auto max-w-3xl text-center">
+        <h2 className="text-(length:--text-3xl) leading-(--leading-tight) font-semibold tracking-(--tracking-tight) text-balance">
+          Um link para receber marcações em qualquer lugar.
+        </h2>
+        <p className="mx-auto mt-4 max-w-2xl text-(length:--text-lg) text-pretty text-(--ink-muted)">
+          Criamos-lhe uma página pública de marcação. Partilhe o endereço onde quiser — e quem o
+          abrir marca sem sair de lá.
+        </p>
+
+        <p className="mt-6 inline-flex max-w-full items-center gap-2 overflow-hidden rounded-(--radius-full) border border-(--brand) bg-(--brand-soft) px-4 py-2">
+          <span className="truncate font-medium text-(--brand)">
+            booking.totalmobi.pt/clinica-sorriso
+          </span>
+        </p>
+      </Revelar>
+
+      <div className="mt-14 grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+        <Revelar>
+          <DemoLinkPublico />
+        </Revelar>
+
+        <Revelar atraso={100}>
+          <ul className="divide-y divide-(--line) border-y border-(--line)">
+            {sitios.map((s) => (
+              <li key={s.onde} className="flex flex-wrap gap-x-4 gap-y-1 py-3.5">
+                <span className="w-28 shrink-0 font-medium">{s.onde}</span>
+                <span className="min-w-0 flex-1 text-pretty text-(--ink-muted)">{s.como}</span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-8 text-(length:--text-xl) leading-(--leading-snug) font-semibold tracking-(--tracking-tight) text-balance">
+            Se consegue partilhar um link, consegue receber uma marcação.
+          </p>
         </Revelar>
       </div>
     </section>
@@ -281,10 +353,16 @@ function ComoFunciona() {
 
 function Canais() {
   const canais = [
-    { nome: 'WhatsApp', texto: 'O cliente conversa como conversaria com uma pessoa.' },
-    { nome: 'O seu site', texto: 'Um botão ou uma página de marcação com a sua marca.' },
-    { nome: 'Ao balcão', texto: 'A receção cria e altera marcações na mesma agenda.' },
-    { nome: 'Telefone', texto: 'Quem atende vê a disponibilidade real enquanto fala.' },
+    {
+      nome: 'WhatsApp',
+      texto: 'O cliente conversa naturalmente e pode marcar, alterar ou cancelar.',
+    },
+    { nome: 'Website', texto: 'A marcação integrada no site que já tem, sem o refazer.' },
+    {
+      nome: 'Link público',
+      texto: 'A sua página de marcação, para partilhar no Instagram, no Google ou onde quiser.',
+    },
+    { nome: 'Receção', texto: 'A equipa cria e altera marcações na mesma agenda.' },
   ];
 
   return (
@@ -295,7 +373,7 @@ function Canais() {
             Uma agenda. Todos os canais.
           </h2>
           <p className="mt-4 max-w-prose text-(length:--text-lg) text-pretty text-(--ink-muted)">
-            Não interessa por onde a marcação começa. Acaba sempre no mesmo sítio — e é por isso que
+            Não interessa onde a marcação começa. Todas chegam à mesma agenda — e é por isso que
             duas pessoas nunca ficam com o mesmo horário.
           </p>
         </Revelar>
@@ -460,6 +538,18 @@ function Capacidades() {
 function Perguntas() {
   const perguntas = [
     {
+      p: 'Preciso de ter website?',
+      r: 'Não. Criamos uma página pública de marcação com a sua marca, no endereço booking.totalmobi.pt/aminhaempresa. Pode usá-la sozinha, sem site nenhum.',
+    },
+    {
+      p: 'Posso divulgar a página de marcações no Instagram?',
+      r: 'Sim. O endereço pode ir para a bio do Instagram, para o botão do Facebook, para o perfil de empresa do Google, para uma conversa de WhatsApp, para a assinatura de email ou para uma campanha. Onde conseguir partilhar um link, consegue receber marcações.',
+    },
+    {
+      p: 'O endereço fica com a minha marca?',
+      r: 'A página fica: logótipo, cores, serviços e equipa são seus. O endereço é booking.totalmobi.pt seguido do nome da sua empresa — um domínio próprio, como marcacoes.aminhaclinica.pt, ainda não está disponível.',
+    },
+    {
       p: 'Tenho de mudar de site?',
       r: 'Não. O Totalmobi Booking encaixa no site que já tem — basta acrescentar um botão ou um endereço de marcação. Se não tiver site, damos-lhe uma página de marcação com a sua marca.',
     },
@@ -532,8 +622,9 @@ function Contacto() {
             A sua agenda pode começar a trabalhar por si.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-(length:--text-lg) text-pretty text-(--ink-muted)">
-            Diga-nos como funciona o seu negócio e mostramos-lhe o sistema a correr com os seus
-            serviços e a sua marca.
+            Receba marcações pelo WhatsApp, pelo seu website ou pelo seu próprio link público — a
+            qualquer hora. Diga-nos como funciona o seu negócio e mostramos-lhe o sistema a correr
+            com os seus serviços e a sua marca.
           </p>
 
           <div className="mt-9 flex flex-wrap justify-center gap-3">
@@ -567,6 +658,9 @@ function Rodape() {
           </a>
           <a href="#white-label" className="hover:text-(--ink)">
             A sua marca
+          </a>
+          <a href="#link-publico" className="hover:text-(--ink)">
+            Link público
           </a>
           <a href="#perguntas" className="hover:text-(--ink)">
             Perguntas
