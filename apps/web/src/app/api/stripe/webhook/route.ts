@@ -105,7 +105,19 @@ export async function POST(request: Request): Promise<Response> {
       return Response.json({ recebido: true, repetido: true });
     }
     console.error('[stripe] não foi possível registar o evento', erroDeRegisto);
-    return Response.json({ erro: 'erro interno' }, { status: 500 });
+
+    // O código do Postgres vai na resposta, e só o código.
+    //
+    // O painel do Stripe mostra o corpo de cada entrega falhada. Durante a
+    // primeira compra a sério, este sítio devolveu `erro interno` seis vezes
+    // seguidas e essa palavra não distingue uma tabela em falta de uma coluna
+    // errada ou de um privilégio esquecido — era `42501`, permission denied,
+    // e ficou escondido em `console.error`.
+    //
+    // `42501` não é informação sensível: é um código de cinco caracteres do
+    // manual do Postgres. A mensagem, essa, fica no log — pode trazer nomes de
+    // colunas e valores, e o corpo de uma resposta HTTP não é sítio para isso.
+    return Response.json({ erro: 'erro interno', codigo: erroDeRegisto.code }, { status: 500 });
   }
 
   if (!TRATADOS.has(evento.type)) {
