@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { estadoDosPrecos } from '@/lib/stripe/precos';
 import { getPublicClient } from '@/lib/supabase/server';
 
 export const metadata = { title: 'Estado do sistema' };
@@ -57,6 +58,47 @@ async function runChecks(): Promise<CheckResult[]> {
 
   // A leitura tem de FALHAR ou vir vazia. `memberships` não tem política para
   // `anon`, e o privilégio de tabela também não lhe foi dado.
+  /**
+   * O Stripe.
+   *
+   * Nomeia as variáveis que faltam em vez de dizer só "não está configurado".
+   * Quando o botão de um plano não funciona, a pergunta é sempre "porquê" — e a
+   * resposta é quase sempre uma variável por preencher num dos ambientes.
+   *
+   * **Nunca mostra valores**, só se estão presentes. Os `price_id` não são
+   * segredos, mas as chaves são, e uma página que mostrasse "presente" ao lado
+   * do início de uma chave já estaria a dizer de mais.
+   */
+  const precos = estadoDosPrecos();
+  const precosEmFalta = precos.filter((p) => !p.configurado);
+  const temChave = Boolean(process.env['STRIPE_SECRET_KEY']);
+  const temSegredoDoWebhook = Boolean(process.env['STRIPE_WEBHOOK_SECRET']);
+
+  checks.push({
+    label: 'Stripe — chave secreta',
+    ok: temChave,
+    detail: temChave
+      ? `presente${process.env['STRIPE_SECRET_KEY']?.startsWith('sk_test_') ? ' (modo de teste)' : ' (modo real)'}`
+      : 'falta STRIPE_SECRET_KEY',
+  });
+
+  checks.push({
+    label: 'Stripe — assinatura do webhook',
+    ok: temSegredoDoWebhook,
+    detail: temSegredoDoWebhook
+      ? 'presente'
+      : 'falta STRIPE_WEBHOOK_SECRET — só existe depois de criar o endpoint no painel',
+  });
+
+  checks.push({
+    label: 'Stripe — preços',
+    ok: precosEmFalta.length === 0,
+    detail:
+      precosEmFalta.length === 0
+        ? `${precos.length} de ${precos.length} configurados`
+        : `faltam ${precosEmFalta.length}: ${precosEmFalta.map((p) => p.variavel).join(', ')}`,
+  });
+
   const memberships = await client.from('memberships').select('id').limit(1);
   const isolated = Boolean(memberships.error) || (memberships.data ?? []).length === 0;
   checks.push({
