@@ -98,7 +98,7 @@ export default async function ObrigadoPage({
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Link
-              href={`/app/${empresa.slug}`}
+              href={`/app/${empresa.slug}/comecar`}
               className="inline-flex min-h-12 items-center rounded-(--radius-full) bg-(--brand) px-6 font-medium text-(--brand-ink)"
             >
               Configurar a minha agenda

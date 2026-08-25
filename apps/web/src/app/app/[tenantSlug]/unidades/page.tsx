@@ -72,9 +72,7 @@ export default async function LocationsPage({
       )}
 
       <p className="mt-6 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-subtle)">
-        Criar e editar unidades pela interface chega com os horários, no Milestone 6 — é aí que
-        a unidade passa a ter comportamento e não só morada.
-      </p>
+        A primeira unidade cria-se no assistente de configuração. Editar as existentes e acrescentar outras ainda é trabalho de base de dados — está por fazer, e a nota fica aqui em vez de uma promessa com data.</p>
     </main>
   );
 }

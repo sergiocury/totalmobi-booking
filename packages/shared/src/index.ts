@@ -11,5 +11,6 @@ export * from './domain/alterar-dia';
 export * from './domain/planos';
 export * from './domain/precos-stripe';
 export * from './domain/preparacao';
+export * from './domain/horario-simples';
 export * from './design/contrast';
 export * from './constants';

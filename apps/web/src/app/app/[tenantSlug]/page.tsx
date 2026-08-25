@@ -150,6 +150,18 @@ export default async function TenantOverviewPage({
             />
           </div>
 
+          {/*
+            A lista mostra o caminho; este botão percorre-o. Sem ele, a pessoa
+            que acabou de pagar tinha de escolher por onde começar — e o
+            primeiro passo, criar a unidade, não tinha sequer interface própria.
+          */}
+          <Link
+            href={`/app/${tenantSlug}/comecar`}
+            className="mt-5 inline-flex min-h-11 items-center rounded-(--radius-full) bg-(--brand) px-5 font-medium text-(--brand-ink)"
+          >
+            {estado.feitos === 0 ? 'Configurar a minha agenda' : 'Continuar a configuração'}
+          </Link>
+
           <ol className="mt-5 space-y-1">
             {estado.passos.map((passo) => (
               <li key={passo.chave}>

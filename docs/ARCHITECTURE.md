@@ -738,6 +738,22 @@ Este projeto já pagou por duas definições da mesma coisa uma vez: na fita das
 semanas, a barra de resumo contava seis dias alterados enquanto a grelha
 desenhava cinco. A correção foi idêntica — uma função, dois consumidores.
 
+### O assistente de configuração
+
+`/app/[tenantSlug]/comecar` percorre os cinco passos. Não guarda progresso em
+lado nenhum: o passo atual é o primeiro que falta em `preparacao()`. Daí sair de
+graça que seja retomável, que nunca discorde do painel, e que não haja forma de
+o «acabar» sem a página pública ficar mesmo a funcionar.
+
+O que o motivou foi um buraco que só apareceu com o primeiro cliente a sério:
+**criar uma unidade não tinha interface nenhuma**. A página de unidades era só
+de leitura, com uma nota a prometer a criação «no Milestone 6». As três empresas
+de demonstração tinham recebido as suas por migração, e por isso ninguém deu
+pela falta durante meses de trabalho.
+
+Fica por fazer: **editar unidades existentes e acrescentar a segunda**. O
+assistente cria a primeira; o resto ainda é trabalho de base de dados.
+
 ---
 
 ---
