@@ -207,6 +207,29 @@ async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb)
   const segundos = (v: number | null | undefined) =>
     typeof v === 'number' ? new Date(v * 1000).toISOString() : null;
 
+  /**
+   * O período vive em dois sítios, conforme a idade da API.
+   *
+   * Nas versões recentes está no **item** da subscrição. Nas antigas estava na
+   * própria subscrição. E a versão que conta não é a do SDK: é a que estiver
+   * fixada **no endpoint do webhook**, que pode ser muito mais velha do que o
+   * resto — o endpoint desta conta está em 2020-03-02.
+   *
+   * Ler só o item daria `null` nas duas colunas de período, sem erro nenhum e
+   * sem ninguém dar por isso até alguém perguntar quando é que a subscrição
+   * renova. Lê-se onde estiver.
+   *
+   * O `as` atravessa `unknown` porque o campo não existe no tipo atual — existe
+   * no JSON que uma API antiga envia, que é coisa diferente.
+   */
+  const antiga = subscricao as unknown as {
+    current_period_start?: number;
+    current_period_end?: number;
+  };
+
+  const inicioDoPeriodo = segundos(item?.current_period_start ?? antiga.current_period_start);
+  const fimDoPeriodo = segundos(item?.current_period_end ?? antiga.current_period_end);
+
   const { error } = await db.from('tenant_subscriptions').upsert(
     {
       tenant_id: tenantId,
@@ -216,8 +239,8 @@ async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb)
       plan_code: planCode,
       status: subscricao.status,
       interval: (meta['interval'] as 'month' | 'year' | undefined) ?? null,
-      current_period_start: segundos(item?.current_period_start),
-      current_period_end: segundos(item?.current_period_end),
+      current_period_start: inicioDoPeriodo,
+      current_period_end: fimDoPeriodo,
       cancel_at_period_end: subscricao.cancel_at_period_end,
       trial_end: segundos(subscricao.trial_end),
       updated_at: new Date().toISOString(),
