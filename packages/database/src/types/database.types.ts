@@ -1099,6 +1099,7 @@ export type Database = {
       }
       plans: {
         Row: {
+          annual_price: number | null
           code: string
           created_at: string
           currency: string
@@ -1107,9 +1108,12 @@ export type Database = {
           monthly_price: number
           name: string
           sort_order: number
+          stripe_annual_price_id: string | null
+          stripe_monthly_price_id: string | null
           updated_at: string
         }
         Insert: {
+          annual_price?: number | null
           code: string
           created_at?: string
           currency?: string
@@ -1118,9 +1122,12 @@ export type Database = {
           monthly_price?: number
           name: string
           sort_order?: number
+          stripe_annual_price_id?: string | null
+          stripe_monthly_price_id?: string | null
           updated_at?: string
         }
         Update: {
+          annual_price?: number | null
           code?: string
           created_at?: string
           currency?: string
@@ -1129,6 +1136,8 @@ export type Database = {
           monthly_price?: number
           name?: string
           sort_order?: number
+          stripe_annual_price_id?: string | null
+          stripe_monthly_price_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1638,6 +1647,36 @@ export type Database = {
           },
         ]
       }
+      stripe_webhook_events: {
+        Row: {
+          error: string | null
+          id: string
+          payload: Json | null
+          processed_at: string | null
+          received_at: string
+          status: string
+          type: string
+        }
+        Insert: {
+          error?: string | null
+          id: string
+          payload?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          status?: string
+          type: string
+        }
+        Update: {
+          error?: string | null
+          id?: string
+          payload?: Json | null
+          processed_at?: string | null
+          received_at?: string
+          status?: string
+          type?: string
+        }
+        Relationships: []
+      }
       tenant_branding: {
         Row: {
           background_color: string
@@ -1793,6 +1832,72 @@ export type Database = {
             foreignKeyName: "tenant_policies_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: true
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tenant_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          interval: string | null
+          plan_code: string
+          status: string
+          stripe_customer_id: string
+          stripe_price_id: string
+          stripe_subscription_id: string
+          tenant_id: string
+          trial_end: string | null
+          updated_at: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          interval?: string | null
+          plan_code: string
+          status: string
+          stripe_customer_id: string
+          stripe_price_id: string
+          stripe_subscription_id: string
+          tenant_id: string
+          trial_end?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          interval?: string | null
+          plan_code?: string
+          status?: string
+          stripe_customer_id?: string
+          stripe_price_id?: string
+          stripe_subscription_id?: string
+          tenant_id?: string
+          trial_end?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_subscriptions_plan_code_fkey"
+            columns: ["plan_code"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "tenant_subscriptions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
             referencedRelation: "tenants"
             referencedColumns: ["id"]
           },
@@ -2078,6 +2183,10 @@ export type Database = {
           status: Database["booking"]["Enums"]["booking_status"]
         }[]
       }
+      agendar_notificacoes: {
+        Args: { p_cada?: string; p_secret: string; p_url: string }
+        Returns: string
+      }
       availability_dataset: {
         Args: {
           p_from: string
@@ -2137,6 +2246,8 @@ export type Database = {
       }
       current_staff_ids: { Args: never; Returns: string[] }
       current_tenant_ids: { Args: never; Returns: string[] }
+      desagendar_notificacoes: { Args: never; Returns: string }
+      estado_do_agendador: { Args: never; Returns: Json }
       fail_notification_job: {
         Args: { p_error: string; p_job_id: string }
         Returns: undefined

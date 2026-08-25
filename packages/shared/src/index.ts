@@ -9,5 +9,6 @@ export * from './domain/features';
 export * from './domain/schedule';
 export * from './domain/alterar-dia';
 export * from './domain/planos';
+export * from './domain/precos-stripe';
 export * from './design/contrast';
 export * from './constants';
