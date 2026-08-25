@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  SEGMENTOS_RESERVADOS,
   firstSegment,
   isPublicPath,
   normalizeHost,
@@ -136,5 +137,40 @@ describe('isPublicPath', () => {
   it('o painel não é público', () => {
     expect(isPublicPath('/app/agenda')).toBe(false);
     expect(isPublicPath('/console')).toBe(false);
+  });
+});
+
+describe('os segmentos reservados cobrem as rotas reais', () => {
+  /**
+   * O teste que impede a regressão de voltar.
+   *
+   * Ao ligar o link público, `/marcar` e `/design` passaram a ser tratados como
+   * slugs de empresa e devolviam 404 — sem erro, sem aviso, só uma rota que
+   * deixou de existir. Este teste lê as pastas de topo da aplicação e exige que
+   * cada uma esteja reservada.
+   *
+   * Lê o disco de propósito. Uma lista escrita à mão dentro do teste seria uma
+   * segunda cópia da lista que estamos a verificar.
+   */
+  it('cada pasta de topo em apps/web/src/app está reservada', async () => {
+    const { readdirSync, existsSync } = await import('node:fs');
+    const { join } = await import('node:path');
+
+    const raiz = join(process.cwd(), 'apps', 'web', 'src', 'app');
+    if (!existsSync(raiz)) {
+      // O pacote também corre isolado, fora do monorepo. Aí não há nada a
+      // comparar, e falhar seria falhar por uma razão que não é a do teste.
+      return;
+    }
+
+    const pastas = readdirSync(raiz, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      // As rotas dinâmicas e os grupos não são segmentos literais.
+      .filter((e) => !e.name.startsWith('[') && !e.name.startsWith('('))
+      .map((e) => e.name);
+
+    const emFalta = pastas.filter((nome) => !SEGMENTOS_RESERVADOS.includes(nome));
+
+    expect(emFalta, `rotas por reservar: ${emFalta.join(', ')}`).toEqual([]);
   });
 });

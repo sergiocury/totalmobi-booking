@@ -13,16 +13,36 @@
  */
 
 /** Rotas que nunca pertencem a um tenant, mesmo que o primeiro segmento pareça um slug. */
+/**
+ * Segmentos que são nossos e nunca podem ser o slug de uma empresa.
+ *
+ * **Tem de conter todas as rotas de topo da aplicação.** Um segmento a menos
+ * aqui não dá erro: passa a ser tratado como slug de empresa, o pedido é
+ * reescrito para `/marcar/<segmento>` e a rota verdadeira devolve 404. Foi
+ * exatamente o que aconteceu ao ligar o link público — `/marcar` e `/design`
+ * deixaram de existir sem ninguém dar por isso até alguém as abrir.
+ *
+ * A lista está protegida por um teste que a compara com as pastas reais de
+ * `apps/web/src/app`. Criar uma rota nova e esquecer esta lista faz o teste
+ * falhar em vez de partir a rota em produção.
+ *
+ * Também protege os slugs: uma empresa não pode chamar-se `login` nem `app`.
+ * Isso é reforçado na base de dados pela tabela `reserved_slugs`.
+ */
 const PLATFORM_SEGMENTS: ReadonlySet<string> = new Set([
   'api',
   'app',
-  'console',
   'auth',
+  'console',
+  'convite',
+  'design',
+  'invite',
   'login',
   'logout',
-  'convite',
-  'invite',
   'm',
+  // A rota antiga da página pública. Continua a funcionar: está em emails já
+  // enviados e em links que alguém pode ter guardado.
+  'marcar',
   'status',
   'widget',
   '_next',
@@ -30,6 +50,9 @@ const PLATFORM_SEGMENTS: ReadonlySet<string> = new Set([
   'robots.txt',
   'sitemap.xml',
 ]);
+
+/** As mesmas, para quem precise de as verificar de fora. */
+export const SEGMENTOS_RESERVADOS: readonly string[] = [...PLATFORM_SEGMENTS];
 
 /** Prefixos que dispensam sessão e não devem sofrer redireção para o login. */
 const PUBLIC_PREFIXES: readonly string[] = [

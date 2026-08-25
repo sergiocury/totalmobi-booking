@@ -157,9 +157,12 @@ function WhiteLabel() {
         'A cor da marca entra no sistema e é validada contra as normas de contraste antes de ser usada. Fica com a sua identidade e continua legível para toda a gente.',
     },
     {
-      titulo: 'No seu endereço',
+      titulo: 'Um link só seu para partilhar',
+      // A versão anterior prometia marcacoes.aminhaclinica.pt — domínio próprio,
+      // que não está implementado. Uma promessa que o produto não cumpre é pior
+      // do que uma funcionalidade a menos: descobre-se na primeira reunião.
       texto:
-        'marcacoes.aminhaclinica.pt em vez de um portal de terceiros. O cliente nunca sai da sua marca.',
+        'booking.totalmobi.pt/aminhaclinica — para pôr na bio do Instagram, no botão do Facebook ou num QR ao balcão. A página é sua; o endereço é nosso, e isso vê-se só no link.',
     },
   ];
 
@@ -168,12 +171,12 @@ function WhiteLabel() {
       <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
         <Revelar>
           <h2 className="max-w-2xl text-(length:--text-3xl) leading-(--leading-tight) font-semibold tracking-(--tracking-tight) text-balance">
-            É o seu site. É a sua marca. Os clientes continuam a ser seus.
+            É a sua marca. Onde quer que o cliente marque.
           </h2>
           <p className="mt-4 max-w-prose text-(length:--text-lg) text-pretty text-(--ink-muted)">
-            Não mandamos ninguém para um portal com o nosso nome. A marcação acontece no seu
-            endereço, com o seu logótipo e as suas cores — e quem marca fica com a impressão de que
-            fez tudo consigo, porque fez.
+            A página de marcação tem o seu logótipo, as suas cores, os seus serviços e a sua equipa.
+            Ninguém vê um catálogo de concorrentes nem é convidado a marcar noutro sítio — quem
+            marca fica com a impressão de que fez tudo consigo, porque fez.
           </p>
         </Revelar>
 

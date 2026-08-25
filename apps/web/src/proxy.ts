@@ -20,9 +20,44 @@ import { isPublicPath, resolveTenant } from '@totalmobi/shared';
  * um proxy está a fazer trabalho a mais.
  */
 
-const PLATFORM_HOSTS = (process.env['NEXT_PUBLIC_BOOKING_DOMAIN'] ?? 'localhost')
-  .split(',')
-  .map((h) => h.trim())
+/**
+ * Os domínios que são nossos.
+ *
+ * ISTO ESTAVA ERRADO EM PRODUÇÃO E NINGUÉM DAVA POR ISSO
+ *
+ * Lia-se só de `NEXT_PUBLIC_BOOKING_DOMAIN`, que não está definida na Vercel —
+ * caía em `localhost`, e o resultado era o nosso próprio domínio a resolver
+ * como domínio de cliente:
+ *
+ *     X-Tenant-Source: custom_domain
+ *     X-Tenant-Identifier: booking.totalmobi.pt
+ *
+ * Era inofensivo enquanto ninguém consumisse o cabeçalho. Deixou de o ser no
+ * momento em que o link público passou a depender dele.
+ *
+ * A correção não é pedir que alguém defina a variável. É **deixar de precisar
+ * dela**: o `NEXT_PUBLIC_APP_URL` já tem de estar certo — é dele que saem os
+ * links dos emails de marcação, e esses chegam. Uma verdade que tem de estar
+ * escrita em dois sítios é uma verdade que vai estar errada num deles.
+ *
+ * A variável continua a ser lida, para quem quiser acrescentar domínios; passou
+ * é a ser um extra em vez da única fonte.
+ */
+function hostDoUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+const PLATFORM_HOSTS = [
+  ...(process.env['NEXT_PUBLIC_BOOKING_DOMAIN'] ?? '').split(','),
+  hostDoUrl(process.env['NEXT_PUBLIC_APP_URL']),
+  'localhost',
+]
+  .map((h) => (h ?? '').trim())
   .filter(Boolean);
 
 export async function proxy(request: NextRequest) {
@@ -79,6 +114,36 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  /**
+   * O link público: `booking.totalmobi.pt/clinica-sorriso`.
+   *
+   * É o endereço que a empresa põe na bio do Instagram, no botão do Facebook,
+   * no QR do balcão. Tem de ser curto e tem de ser dela — `/marcar/` pelo meio
+   * é ruído que ninguém escreve à mão nem lê num cartão.
+   *
+   * Reescrita e não redirecionamento: o URL que a pessoa vê continua a ser o
+   * curto. Um `redirect` mostrava `/marcar/...` na barra de endereço logo a
+   * seguir ao clique, e desfazia metade do ponto.
+   *
+   * O `resolveTenant` já decidia isto — devolve `path_slug` quando o primeiro
+   * segmento não é uma rota reservada, e tem dezanove testes. Faltava alguém
+   * agir sobre a decisão.
+   */
+  if (resolution.source === 'path_slug' && resolution.identifier) {
+    const destino = request.nextUrl.clone();
+    destino.pathname = `/marcar/${resolution.identifier}${restoDoCaminho(pathname)}`;
+
+    const reescrita = NextResponse.rewrite(destino, { request });
+    // Os cookies renovados acima têm de viajar nesta resposta também, senão a
+    // sessão morre para quem abre o link público já autenticado.
+    for (const cookie of response.cookies.getAll()) {
+      reescrita.cookies.set(cookie);
+    }
+    reescrita.headers.set('x-tenant-source', resolution.source);
+    reescrita.headers.set('x-tenant-identifier', resolution.identifier);
+    return reescrita;
+  }
+
   // Passar o tenant resolvido às páginas. São cabeçalhos de pedido, escritos
   // por nós — nunca vêm do cliente, porque `NextResponse.next({ request })`
   // reconstrói o pedido a partir daqui.
@@ -88,6 +153,12 @@ export async function proxy(request: NextRequest) {
   }
 
   return response;
+}
+
+/** O que vem depois do slug. `/clinica-sorriso/qualquer-coisa` → `/qualquer-coisa`. */
+function restoDoCaminho(pathname: string): string {
+  const partes = pathname.split('/').filter(Boolean);
+  return partes.length > 1 ? `/${partes.slice(1).join('/')}` : '';
 }
 
 export const config = {
