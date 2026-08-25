@@ -165,10 +165,39 @@ async function processar(evento: Stripe.Event, db: ClienteDb): Promise<void> {
       return;
 
     case 'checkout.session.completed': {
-      // A sessão não traz a subscrição expandida. O evento
-      // `customer.subscription.created` chega logo a seguir e traz tudo — este
-      // fica só registado, para se poder responder a "quando é que esta pessoa
-      // pagou pela primeira vez".
+      /**
+       * É aqui que a empresa nasce.
+       *
+       * A versão anterior deixava este evento passar em branco, com um
+       * comentário a dizer que `customer.subscription.created` «chega logo a
+       * seguir e traz tudo». Chega — se alguém se tiver lembrado de o
+       * selecionar no painel do Stripe. Na primeira compra a sério não estava,
+       * e o resultado foi um cliente que pagou, um webhook a responder 200, e
+       * nenhuma empresa criada. Duzentos é pior do que quinhentos aqui: um erro
+       * teria sido reenviado.
+       *
+       * Um pressuposto sobre configuração remota não é um pressuposto que o
+       * código possa fazer em silêncio. Este evento significa «pagou», traz o
+       * identificador da subscrição, e a subscrição traz os metadados do
+       * registo. Chega para provisionar sozinho.
+       *
+       * Continua a valer a pena ouvir os `customer.subscription.*`: são eles
+       * que dão as renovações, os cancelamentos e as falhas de pagamento. Mas
+       * já não são a única porta por onde uma compra entra.
+       */
+      const sessao = evento.data.object;
+      const idDaSubscricao =
+        typeof sessao.subscription === 'string' ? sessao.subscription : sessao.subscription?.id;
+
+      if (!idDaSubscricao) {
+        // Um checkout que não é de subscrição não tem aqui nada que fazer.
+        return;
+      }
+
+      const cliente = obterStripe();
+      if ('erro' in cliente) throw new Error(cliente.erro);
+
+      await guardarSubscricao(await cliente.ok.subscriptions.retrieve(idDaSubscricao), db);
       return;
     }
 
