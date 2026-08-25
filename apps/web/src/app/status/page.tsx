@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { createServiceClient } from '@totalmobi/database/server';
+
 import { estadoDosPrecos } from '@/lib/stripe/precos';
 import { getPublicClient } from '@/lib/supabase/server';
 
@@ -106,23 +108,46 @@ async function runChecks(): Promise<CheckResult[]> {
    * painel, pode existir sem os eventos certos, ou pode estar a apontar para
    * outro sítio. Só o registo prova.
    */
-  const eventos = await client
+  /*
+   * Esta verificação — e só esta — usa o cliente de serviço.
+   *
+   * O registo de webhooks é o diário interno de uma integração: o `anon` não
+   * tem lá leitura, e não é para ter. Mas a versão anterior perguntava-lhe à
+   * mesma, e o PostgREST respondia com um erro que o código deitava fora —
+   * `data` a null, `count` a null, e a página a escrever «nenhum».
+   *
+   * «Não tenho permissão para saber» e «não chegou nada» apareciam com as
+   * mesmas sete letras. Durante a primeira compra a sério havia quatro eventos
+   * na tabela e esta página jurou que não havia nenhum, o que mandou a busca
+   * para o lado errado: fui procurar um endpoint mal configurado no Stripe
+   * quando o problema estava aqui dentro.
+   *
+   * Um diagnóstico que confunde ignorância com ausência é pior do que não
+   * existir — o silêncio não engana ninguém, uma resposta errada engana.
+   */
+  const servico = createServiceClient();
+
+  const eventos = await servico
     .from('stripe_webhook_events')
     .select('type, status, received_at')
     .order('received_at', { ascending: false })
     .limit(1);
 
-  const ultimo = eventos.data?.[0] ?? null;
-  const { count } = await client
+  const { count, error: erroDaContagem } = await servico
     .from('stripe_webhook_events')
     .select('id', { count: 'exact', head: true });
 
+  const falhou = eventos.error ?? erroDaContagem;
+  const ultimo = eventos.data?.[0] ?? null;
+
   checks.push({
     label: 'Stripe — eventos recebidos',
-    ok: (count ?? 0) > 0,
-    detail: ultimo
-      ? `${count} recebidos · último: ${ultimo.type} (${ultimo.status}) em ${ultimo.received_at.slice(0, 16).replace('T', ' ')}`
-      : 'nenhum — o endpoint pode não estar criado no painel do Stripe, ou não ter os eventos certos',
+    ok: !falhou && (count ?? 0) > 0,
+    detail: falhou
+      ? `não foi possível ler a tabela (${falhou.code ?? 'sem código'}) — isto é um problema desta página, não do Stripe`
+      : ultimo
+        ? `${count} recebidos · último: ${ultimo.type} (${ultimo.status}) em ${ultimo.received_at.slice(0, 16).replace('T', ' ')}`
+        : 'nenhum — o endpoint pode não estar criado no painel do Stripe, ou não ter os eventos certos',
   });
 
   checks.push({
