@@ -141,6 +141,28 @@ estar tomada antes de sair do modo de teste.
 
 ---
 
+## Quando o painel do Stripe mostra 500
+
+As entregas falhadas trazem o corpo da resposta. Desde `1f68242` esse corpo
+inclui o código do Postgres:
+
+```json
+{ "erro": "erro interno", "codigo": "42501" }
+```
+
+| Código | O que é | O que fazer |
+|---|---|---|
+| `42501` | Falta um grant à tabela | Ver a `0035` e o teste-guarda das migrations |
+| `42P01` | A tabela não existe | A migration não chegou a esta base |
+| `23503` | Chave estrangeira | Os metadados apontam para algo que já não existe |
+| *sem código* | Falhou depois do registo | A linha em `stripe_webhook_events` tem o `error` |
+
+Um **400** em vez de 500 é outra coisa: assinatura inválida, quase sempre um
+`whsec_` que pertence a outro endpoint.
+
+O Stripe reenvia as entregas falhadas sozinho. Também se reenvia à mão, em
+**Webhooks → o destino → Entregas de eventos**.
+
 ## Nunca
 
 - Escrever chaves neste ficheiro ou em qualquer outro do repositório.

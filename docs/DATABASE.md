@@ -735,6 +735,22 @@ utilizador com permissão de criar objetos podia sequestrar a resolução de nom
 ```sql
 GRANT USAGE ON SCHEMA booking TO anon, authenticated, service_role;
 -- Sem GRANT ALL. Cada tabela recebe o mínimo, explicitamente.
+
+Esta decisão tem um custo que vale a pena dizer em voz alta: **esquecer um grant
+não dá erro nenhum**. A migration aplica-se, a tabela existe, e a falha aparece
+mais tarde, em produção, na primeira escrita — `42501 permission denied`.
+
+Aconteceu na `0034`. As tabelas de subscrição nasceram sem privilégios para o
+`service_role`; o webhook do Stripe respondia 500 a todos os eventos e a tabela
+de diagnóstico ficava vazia, porque escrever nela era precisamente o que
+falhava. Corrigido na `0035`.
+
+O RLS não tapa este buraco: **uma política só é consultada depois de a role ter
+direito à tabela**. O `service_role` ignora RLS, mas não ignora `grant`.
+
+A guarda está em `packages/database/tests/grants-das-migracoes.test.ts`: lê as
+migrations e exige um grant de `service_role` por cada tabela criada em
+`booking`.
 -- anon: SELECT apenas em tenants/locations/services/staff públicos.
 ```
 
