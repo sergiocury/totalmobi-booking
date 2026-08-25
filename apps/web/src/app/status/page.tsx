@@ -82,12 +82,47 @@ async function runChecks(): Promise<CheckResult[]> {
       : 'falta STRIPE_SECRET_KEY',
   });
 
+  // O prefixo de um segredo de assinatura é `whsec_` e é conhecimento público —
+  // dizer que está lá não revela nada. Mas apanha o engano mais comum, que é
+  // colar no campo errado a chave secreta ou o identificador do endpoint.
+  const segredoDoWebhook = process.env['STRIPE_WEBHOOK_SECRET'] ?? '';
+  const formaCerta = segredoDoWebhook.startsWith('whsec_');
+
   checks.push({
     label: 'Stripe — assinatura do webhook',
-    ok: temSegredoDoWebhook,
-    detail: temSegredoDoWebhook
-      ? 'presente'
-      : 'falta STRIPE_WEBHOOK_SECRET — só existe depois de criar o endpoint no painel',
+    ok: temSegredoDoWebhook && formaCerta,
+    detail: !temSegredoDoWebhook
+      ? 'falta STRIPE_WEBHOOK_SECRET — só existe depois de criar o endpoint no painel'
+      : formaCerta
+        ? 'presente, com a forma certa'
+        : 'presente mas não começa por whsec_ — foi colado o valor errado',
+  });
+
+  /**
+   * Chegou algum evento?
+   *
+   * É a pergunta que decide se uma compra vira empresa. Uma assinatura
+   * configurada não prova entrega nenhuma: o endpoint pode não existir no
+   * painel, pode existir sem os eventos certos, ou pode estar a apontar para
+   * outro sítio. Só o registo prova.
+   */
+  const eventos = await client
+    .from('stripe_webhook_events')
+    .select('type, status, received_at')
+    .order('received_at', { ascending: false })
+    .limit(1);
+
+  const ultimo = eventos.data?.[0] ?? null;
+  const { count } = await client
+    .from('stripe_webhook_events')
+    .select('id', { count: 'exact', head: true });
+
+  checks.push({
+    label: 'Stripe — eventos recebidos',
+    ok: (count ?? 0) > 0,
+    detail: ultimo
+      ? `${count} recebidos · último: ${ultimo.type} (${ultimo.status}) em ${ultimo.received_at.slice(0, 16).replace('T', ' ')}`
+      : 'nenhum — o endpoint pode não estar criado no painel do Stripe, ou não ter os eventos certos',
   });
 
   checks.push({
