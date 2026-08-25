@@ -6,6 +6,7 @@ import { Button } from '@totalmobi/ui';
 import { Cabecalho } from '@/components/landing/cabecalho';
 import { DemoConversa } from '@/components/landing/demo-conversa';
 import { DemoLinkPublico } from '@/components/landing/demo-link-publico';
+import { Precos } from '@/components/landing/precos';
 import { Revelar } from '@/components/landing/revelar';
 
 /**
@@ -32,10 +33,11 @@ import { Revelar } from '@/components/landing/revelar';
  *
  * O QUE ESTA PÁGINA NÃO FAZ
  *
- * Não promete período de teste, porque não há nenhum configurado. Não mostra
- * preços, porque ainda não estão fechados. Não inventa testemunhos nem
- * logótipos de clientes. O apelo à ação é falar connosco — que é o que
- * realmente acontece a seguir.
+ * Não promete período de teste, porque não há nenhum configurado. Não inventa
+ * testemunhos nem logótipos de clientes. E o apelo à ação é falar connosco, e
+ * não "começar agora", porque ainda não há registo self-serve nem checkout — um
+ * botão que promete começar e abre um formulário de contacto é pior do que um
+ * botão honesto.
  */
 
 const URL_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://booking.totalmobi.pt';
@@ -78,6 +80,7 @@ export default function LandingPage() {
         <Canais />
         <Demonstracao />
         <Capacidades />
+        <Precos />
         <Perguntas />
         <Contacto />
       </main>
@@ -636,7 +639,9 @@ function Contacto() {
             </Button>
           </div>
 
-          <p className="mt-6 text-(length:--text-sm) text-(--ink-subtle)">booking@totalmobi.pt</p>
+          <p className="mt-6 text-(length:--text-sm) text-(--ink-subtle)">
+            Planos desde 29 €/mês · booking@totalmobi.pt
+          </p>
         </Revelar>
       </div>
     </section>
@@ -661,6 +666,9 @@ function Rodape() {
           </a>
           <a href="#link-publico" className="hover:text-(--ink)">
             Link público
+          </a>
+          <a href="#precos" className="hover:text-(--ink)">
+            Preços
           </a>
           <a href="#perguntas" className="hover:text-(--ink)">
             Perguntas

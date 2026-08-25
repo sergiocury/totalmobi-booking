@@ -9,6 +9,7 @@ const SECCOES = [
   { href: '#link-publico', rotulo: 'Link público' },
   { href: '#como-funciona', rotulo: 'Como funciona' },
   { href: '#demonstracao', rotulo: 'Demonstração' },
+  { href: '#precos', rotulo: 'Preços' },
   { href: '#perguntas', rotulo: 'Perguntas' },
 ];
 

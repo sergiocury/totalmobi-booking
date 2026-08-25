@@ -1,1 +1,1 @@
-[{"plan_code":"professional","count":2},{"plan_code":"premium","count":1}]
+[{"code":"essential","name":"Essencial","monthly_price":"29.00","annual_price":"290.00","sort_order":1,"funcionalidades":1,"empresas":0},{"code":"professional","name":"Profissional","monthly_price":"49.00","annual_price":"490.00","sort_order":2,"funcionalidades":5,"empresas":2},{"code":"ai","name":"IA","monthly_price":"79.00","annual_price":"790.00","sort_order":3,"funcionalidades":9,"empresas":1}]
