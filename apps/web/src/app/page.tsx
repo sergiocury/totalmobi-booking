@@ -124,7 +124,7 @@ function Hero() {
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Button asChild size="lg">
-            <a href="#contacto">Falar connosco</a>
+            <a href="#precos">Começar agora</a>
           </Button>
           <Button asChild size="lg" variant="secondary">
             <a href="#demonstracao">Ver a funcionar</a>
@@ -132,7 +132,7 @@ function Hero() {
         </div>
 
         <p className="mt-5 text-(length:--text-sm) text-(--ink-subtle)">
-          Funciona mesmo que não tenha website · Sem aplicações para o cliente instalar
+          A partir de 29 €/mês · Funciona mesmo que não tenha website
         </p>
       </Revelar>
 

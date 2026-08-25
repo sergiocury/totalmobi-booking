@@ -175,28 +175,32 @@ async function processar(evento: Stripe.Event, db: ClienteDb): Promise<void> {
 }
 
 /**
- * Escreve o que o Stripe diz.
+ * Escreve o que o Stripe diz, e cria a empresa se ela ainda não existir.
  *
- * Sem interpretar. O estado é o que ele chama ao estado — `active`, `past_due`,
- * `canceled`. Traduzir criaria um mapa para manter de cada vez que ele
- * acrescentasse um valor novo, e um valor não traduzido passaria a `unknown`
- * em silêncio.
+ * ESTE É O ÚNICO SÍTIO ONDE UMA EMPRESA NASCE DE UMA COMPRA
+ *
+ * Não é o formulário de registo, não é a página de obrigado. É aqui, depois de
+ * o Stripe confirmar o pagamento e com a assinatura verificada. Qualquer outro
+ * caminho daria uma empresa a quem soubesse escrever um URL.
+ *
+ * O estado guarda-se como o Stripe lhe chama — `active`, `past_due`, `canceled`.
+ * Traduzir criaria um mapa para manter de cada vez que ele acrescentasse um
+ * valor, e um valor não traduzido passaria a `unknown` em silêncio.
  */
 async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb): Promise<void> {
-  const tenantId = subscricao.metadata?.['tenant_id'] ?? null;
-  const planCode = subscricao.metadata?.['plan_code'] ?? null;
-
-  if (!tenantId) {
-    // Ainda não há empresa: a subscrição foi criada antes do registo, que é o
-    // caso normal de quem compra primeiro e cria a conta depois. Fica no
-    // registo de eventos e é ligada quando a empresa nascer.
-    throw new Error(
-      `subscrição ${subscricao.id} sem tenant_id nos metadados — fica por ligar à empresa`,
-    );
-  }
+  const meta = subscricao.metadata ?? {};
+  const planCode = meta['plan_code'] ?? null;
 
   if (!planCode) {
     throw new Error(`subscrição ${subscricao.id} sem plan_code nos metadados`);
+  }
+
+  const tenantId = meta['tenant_id'] ?? (await provisionar(subscricao, db));
+
+  if (!tenantId) {
+    throw new Error(
+      `subscrição ${subscricao.id} sem empresa: faltam tenant_id ou os dados de registo nos metadados`,
+    );
   }
 
   const item = subscricao.items.data[0];
@@ -211,7 +215,7 @@ async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb)
       stripe_price_id: item?.price.id ?? '',
       plan_code: planCode,
       status: subscricao.status,
-      interval: (subscricao.metadata?.['interval'] as 'month' | 'year' | undefined) ?? null,
+      interval: (meta['interval'] as 'month' | 'year' | undefined) ?? null,
       current_period_start: segundos(item?.current_period_start),
       current_period_end: segundos(item?.current_period_end),
       cancel_at_period_end: subscricao.cancel_at_period_end,
@@ -222,4 +226,97 @@ async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb)
   );
 
   if (error) throw new Error(`não foi possível gravar a subscrição: ${error.message}`);
+
+  // O plano da empresa acompanha o que foi pago. É daqui que o `plan_features`
+  // resolve o que ela pode fazer.
+  await db
+    .from('tenants')
+    .update({ plan_code: planCode, status: 'active', updated_at: new Date().toISOString() })
+    .eq('id', tenantId);
+}
+
+/**
+ * Criar a empresa a partir do que ficou nos metadados do registo.
+ *
+ * Idempotente por construção: se já existir uma empresa com este slug e este
+ * dono, devolve-a em vez de tentar criar outra. O Stripe reenvia eventos, e um
+ * reenvio nunca pode duplicar uma empresa.
+ *
+ * O slug foi verificado no registo, mas entre esse momento e este passam
+ * minutos — e nesses minutos outra pessoa pode ter registado o mesmo nome. A
+ * garantia é o índice único, e o desempate é acrescentar um sufixo em vez de
+ * falhar: quem pagou tem de ficar com uma empresa.
+ */
+async function provisionar(
+  subscricao: Stripe.Subscription,
+  db: ClienteDb,
+): Promise<string | null> {
+  const meta = subscricao.metadata ?? {};
+  const userId = meta['user_id'];
+  const slugPedido = meta['slug'];
+  const displayName = meta['display_name'];
+  const email = meta['email'] ?? null;
+  const planCode = meta['plan_code'];
+
+  if (!userId || !slugPedido || !displayName || !planCode) return null;
+
+  // Já provisionada? O reenvio de um evento não pode criar uma segunda empresa.
+  const { data: jaExiste } = await db
+    .from('memberships')
+    .select('tenant_id, tenants!inner(slug)')
+    .eq('user_id', userId)
+    .limit(50);
+
+  const daPessoa = (jaExiste ?? []).find(
+    (m) => (m.tenants as unknown as { slug: string } | null)?.slug?.startsWith(slugPedido),
+  );
+
+  if (daPessoa) return daPessoa.tenant_id;
+
+  const slug = await slugLivre(db, slugPedido);
+
+  const { data: empresa, error: erroDaEmpresa } = await db
+    .from('tenants')
+    .insert({
+      slug,
+      display_name: displayName,
+      email,
+      plan_code: planCode,
+      status: 'active',
+      created_by: userId,
+    })
+    .select('id')
+    .single();
+
+  if (erroDaEmpresa || !empresa) {
+    throw new Error(`não foi possível criar a empresa: ${erroDaEmpresa?.message ?? 'sem detalhe'}`);
+  }
+
+  // Quem paga fica dono. `accepted_at` preenchido: não faz sentido convidar
+  // alguém para a empresa que acabou de comprar.
+  const { error: erroDoAcesso } = await db.from('memberships').insert({
+    tenant_id: empresa.id,
+    user_id: userId,
+    role: 'tenant_admin',
+    accepted_at: new Date().toISOString(),
+  });
+
+  if (erroDoAcesso) {
+    throw new Error(`empresa ${empresa.id} criada mas sem acesso: ${erroDoAcesso.message}`);
+  }
+
+  return empresa.id;
+}
+
+/** O slug pedido, ou o primeiro sufixo livre. Quem pagou não pode ficar sem empresa. */
+async function slugLivre(db: ClienteDb, pedido: string): Promise<string> {
+  for (let i = 0; i < 20; i += 1) {
+    const candidato = i === 0 ? pedido : `${pedido}-${i + 1}`;
+    const { data } = await db.from('tenants').select('id').eq('slug', candidato).maybeSingle();
+    if (!data) return candidato;
+  }
+
+  // Vinte colisões no mesmo nome é improvável ao ponto de ser suspeito, mas
+  // devolver um slug que sabemos estar ocupado seria pior.
+  return `${pedido}-${Date.now().toString(36)}`;
 }

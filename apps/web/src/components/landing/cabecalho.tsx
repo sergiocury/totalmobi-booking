@@ -75,7 +75,7 @@ export function Cabecalho() {
             Entrar
           </Link>
           <Button asChild size="sm" className="hidden sm:inline-flex">
-            <a href="#contacto">Falar connosco</a>
+            <a href="#precos">Começar agora</a>
           </Button>
 
           <button
@@ -145,8 +145,8 @@ function MenuTelemovel({ onFechar }: { onFechar: () => void }) {
 
       <div className="px-5 pt-2">
         <Button asChild size="lg" className="w-full">
-          <a href="#contacto" onClick={() => ref?.close()}>
-            Falar connosco
+          <a href="#precos" onClick={() => ref?.close()}>
+            Começar agora
           </a>
         </Button>
       </div>

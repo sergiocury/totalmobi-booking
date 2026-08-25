@@ -13,14 +13,15 @@ import { Button, cn } from '@totalmobi/ui';
  * componente é um preço que alguém esquece quando a área comercial muda de
  * ideias, e ficam dois valores diferentes na mesma página.
  *
- * O APELO À AÇÃO AINDA É FALAR CONNOSCO
+ * O APELO À AÇÃO LEVA MESMO A ALGUM LADO
  *
- * A especificação pedia "Começar agora". Ainda não pode ser: não há registo
- * self-serve nem checkout, e um botão que promete começar e abre um formulário
- * de contacto é pior do que um botão honesto. O plano escolhido viaja no assunto
- * do email, para a conversa começar já com contexto.
+ * Enquanto não havia registo nem checkout, este botão dizia "Falar connosco" —
+ * um botão que promete começar e abre um formulário de contacto é pior do que um
+ * botão honesto. Agora leva ao registo, com o plano e a periodicidade escolhidos
+ * a viajarem no endereço.
  *
- * Muda para "Começar agora" no dia em que o Stripe estiver ligado — é uma linha.
+ * "Falar connosco primeiro" fica por baixo, em texto. Há quem queira perguntar
+ * antes de pagar, e tirar-lhes essa hipótese não converte ninguém — afasta.
  *
  * O DESTAQUE DO PLANO RECOMENDADO É UM CONTORNO, NÃO UMA COR
  *
@@ -138,18 +139,28 @@ function Cartao({ plano, anual }: { plano: Plano; anual: boolean }) {
         {anual && poupanca ? `${plano.precoMensal} €/mês, pago de uma vez` : ' '}
       </p>
 
+      {/*
+        Agora leva mesmo a algum lado. Enquanto não havia registo nem checkout,
+        este botão dizia "Falar connosco" — um botão que promete começar e abre
+        um formulário de contacto é pior do que um botão honesto.
+      */}
       <Button
         asChild
         size="lg"
         variant={plano.recomendado ? 'primary' : 'secondary'}
         className="mt-6 w-full"
       >
-        <a
-          href={`mailto:${EMAIL}?subject=${encodeURIComponent(`Totalmobi Booking — plano ${plano.nome}`)}`}
-        >
-          Falar connosco
+        <a href={`/registo?plano=${plano.codigo}&periodo=${anual ? 'year' : 'month'}`}>
+          Começar agora
         </a>
       </Button>
+
+      <a
+        href={`mailto:${EMAIL}?subject=${encodeURIComponent(`Totalmobi Booking — plano ${plano.nome}`)}`}
+        className="mt-2.5 block text-center text-(length:--text-sm) text-(--ink-muted) underline underline-offset-4"
+      >
+        Falar connosco primeiro
+      </a>
 
       <ul className="mt-7 space-y-2.5 text-(length:--text-sm)">
         {plano.destaques.map((d) => (
