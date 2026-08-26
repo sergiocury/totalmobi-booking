@@ -51,7 +51,7 @@ export function Cabecalho() {
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5 sm:px-8">
         <Link href="/" aria-label="Totalmobi Booking — início" className="flex shrink-0">
-          <LogoBooking altura={28} prioridade />
+          <LogoBooking altura={42} prioridade />
         </Link>
 
         <nav aria-label="Secções" className="ml-auto hidden items-center gap-1 md:flex">

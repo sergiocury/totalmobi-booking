@@ -42,7 +42,7 @@ export default async function RegistoPage({
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16">
       <Link href="/" aria-label="Totalmobi Booking — início" className="mb-8 flex">
-        <LogoBooking altura={28} />
+        <LogoBooking altura={42} />
       </Link>
 
       <h1 className="text-(length:--text-2xl) leading-(--leading-snug) font-semibold tracking-(--tracking-tight)">

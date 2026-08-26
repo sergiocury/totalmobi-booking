@@ -35,12 +35,12 @@ export function LogoBooking({
   prioridade = false,
 }: {
   className?: string | undefined;
-  /** Altura em pixéis. A largura sai do rácio 299:96 do ficheiro. */
+  /** Altura em pixéis. A largura sai do rácio 598:192 do ficheiro. */
   altura?: number;
   /** No cabeçalho da landing vale a pena: é a primeira coisa que se vê. */
   prioridade?: boolean;
 }) {
-  const largura = Math.round((altura * 299) / 96);
+  const largura = Math.round((altura * 598) / 192);
   const comum = { width: largura, height: altura, priority: prioridade };
 
   return (

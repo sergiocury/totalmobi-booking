@@ -58,7 +58,7 @@ export default async function AppHomePage() {
           espaçamento largo — desenhada para texto curto de contexto, não para
           uma imagem. Meter lá o logótipo desalinhava-o com o título e obrigava
           a alargar o tipo do componente para servir um caso só. */}
-      <LogoBooking altura={26} className="mb-6" />
+      <LogoBooking altura={39} className="mb-6" />
 
       <PageHeader
         title="As suas empresas"
