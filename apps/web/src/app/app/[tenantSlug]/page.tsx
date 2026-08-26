@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { preparacao } from '@totalmobi/shared';
+import { podeMarcar, preparacao } from '@totalmobi/shared';
 import { Badge, Card, InteractiveCard, PageHeader } from '@totalmobi/ui';
 
 import { canManage, loadTenantPage } from '@/lib/tenant-context';
@@ -86,7 +86,7 @@ export default async function TenantOverviewPage({
   const comServico = new Set((ligacoes.data ?? []).map((l) => l.staff_id));
   const comHorario = new Set((horarios.data ?? []).map((h) => h.staff_id));
 
-  const estado = preparacao({
+  const sinais = {
     unidades: unidades.count ?? 0,
     servicos: servicos.count ?? 0,
     profissionais: (equipa.data ?? []).length,
@@ -97,9 +97,26 @@ export default async function TenantOverviewPage({
     profissionaisSemHorario: (equipa.data ?? []).filter(
       (p) => p.accepts_online_booking && !comHorario.has(p.id),
     ).length,
+    profissionaisProntos: (equipa.data ?? []).filter(
+      (p) => p.accepts_online_booking && comServico.has(p.id) && comHorario.has(p.id),
+    ).length,
     horarios: (horarios.data ?? []).length,
     horariosDaUnidade: horariosDaUnidade.count ?? 0,
-  });
+  };
+
+  /*
+   * Duas perguntas, duas respostas — diferentes de propósito.
+   *
+   * `aceitaMarcacoes` é o que a página pública decide: alguém consegue marcar?
+   * `estado` é a lista de configuração: está tudo feito?
+   *
+   * Uma clínica com quatro profissionais prontos e um por ligar responde «sim»
+   * à primeira e «não» à segunda. O cartão abaixo dizia «Por abrir» nesse caso,
+   * enquanto a página estava aberta e a receber marcações — o painel a
+   * contradizer o que o dono via noutro separador.
+   */
+  const aceitaMarcacoes = podeMarcar(sinais);
+  const estado = preparacao(sinais);
 
   const podeGerir = canManage(context);
   const endereco = `booking.totalmobi.pt/${tenantSlug}`;
@@ -125,7 +142,7 @@ export default async function TenantOverviewPage({
           <div className="min-w-0">
             <div className="flex items-center gap-2.5">
               <h2 className="font-medium">A sua página de marcações</h2>
-              {estado.pronta ? (
+              {aceitaMarcacoes ? (
                 <Badge tone="success">No ar</Badge>
               ) : (
                 <Badge tone="warning">Por abrir</Badge>
@@ -142,10 +159,16 @@ export default async function TenantOverviewPage({
           </Link>
         </div>
 
-        {!estado.pronta ? (
+        {!aceitaMarcacoes ? (
           <p className="mt-3 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
             O endereço já é seu, mas quem lá chegar ainda não consegue marcar. Faltam{' '}
             {estado.emFalta.length} {estado.emFalta.length === 1 ? 'passo' : 'passos'}.
+          </p>
+        ) : !estado.pronta ? (
+          <p className="mt-3 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
+            Já recebe marcações. Falta acabar de configurar{' '}
+            {estado.emFalta.length === 1 ? 'um ponto' : `${estado.emFalta.length} pontos`} — quem
+            estiver por configurar não aparece para ser escolhido.
           </p>
         ) : null}
       </Card>

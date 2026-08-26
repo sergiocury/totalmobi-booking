@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { preparacao, type SinaisDePreparacao } from './preparacao';
+import { podeMarcar, preparacao, type SinaisDePreparacao } from './preparacao';
 
 const nada: SinaisDePreparacao = {
   unidades: 0,
@@ -11,6 +11,7 @@ const nada: SinaisDePreparacao = {
   horariosDaUnidade: 0,
   profissionaisSemServico: 0,
   profissionaisSemHorario: 0,
+  profissionaisProntos: 0,
 };
 
 const tudo: SinaisDePreparacao = {
@@ -22,6 +23,7 @@ const tudo: SinaisDePreparacao = {
   horariosDaUnidade: 5,
   profissionaisSemServico: 0,
   profissionaisSemHorario: 0,
+  profissionaisProntos: 2,
 };
 
 describe('preparacao', () => {
@@ -196,7 +198,57 @@ describe('preparacao', () => {
       'horariosDaUnidade',
     ];
     const contaProblemas = ['profissionaisSemServico', 'profissionaisSemHorario'];
+    // Só a porta pública o lê; a lista do dono não o consulta.
+    const soDaPorta = ['profissionaisProntos'];
 
-    expect([...temDeExistir, ...contaProblemas].sort()).toEqual(Object.keys(tudo).sort());
+    expect([...temDeExistir, ...contaProblemas, ...soDaPorta].sort()).toEqual(
+      Object.keys(tudo).sort(),
+    );
+  });
+});
+
+describe('podeMarcar', () => {
+  /**
+   * O caso de 26/08.
+   *
+   * Cinco profissionais, quatro prontos, um por ligar a serviços. A página
+   * pública dizia «Marcação online indisponível» a toda a gente, porque estava
+   * a usar a lista do dono como porta.
+   */
+  it('uma pessoa por configurar não fecha a clínica', () => {
+    const sinais: SinaisDePreparacao = {
+      ...tudo,
+      profissionais: 5,
+      profissionaisSemServico: 1,
+      profissionaisProntos: 4,
+    };
+
+    expect(podeMarcar(sinais)).toBe(true);
+    // Mas continua a ser um recado para o dono.
+    expect(preparacao(sinais).pronta).toBe(false);
+  });
+
+  it('sem ninguém pronto, não se marca', () => {
+    expect(podeMarcar({ ...tudo, profissionaisProntos: 0 })).toBe(false);
+  });
+
+  it('basta um pronto', () => {
+    expect(podeMarcar({ ...tudo, profissionaisProntos: 1 })).toBe(true);
+  });
+
+  it.each(['unidades', 'servicos', 'horariosDaUnidade'] as const)(
+    'sem %s não se marca',
+    (chave) => {
+      expect(podeMarcar({ ...tudo, [chave]: 0 })).toBe(false);
+    },
+  );
+
+  it('uma empresa acabada de criar não aceita marcações', () => {
+    expect(podeMarcar(nada)).toBe(false);
+  });
+
+  it('quando está tudo pronto, a porta está aberta', () => {
+    expect(preparacao(tudo).pronta).toBe(true);
+    expect(podeMarcar(tudo)).toBe(true);
   });
 });

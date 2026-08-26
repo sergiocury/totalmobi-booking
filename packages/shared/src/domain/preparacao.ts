@@ -81,6 +81,13 @@ export interface SinaisDePreparacao {
    * pessoas já lá estavam.
    */
   profissionaisSemHorario: number;
+  /**
+   * Profissionais com serviço **e** horário — os que podem mesmo receber uma
+   * marcação hoje.
+   *
+   * É o único sinal que a porta pública consulta. Ver `podeMarcar`.
+   */
+  profissionaisProntos: number;
   /** Linhas de horário de trabalho da equipa. */
   horarios: number;
   /**
@@ -112,6 +119,38 @@ export interface Preparacao {
   pronta: boolean;
   /** Quantos passos estão feitos, para uma barra de progresso. */
   feitos: number;
+}
+
+/**
+ * A porta da página pública: **alguém consegue marcar alguma coisa?**
+ *
+ * DUAS PERGUNTAS DIFERENTES, E EU ESTAVA A USAR UMA FUNÇÃO SÓ
+ *
+ * `preparacao()` responde a «está tudo configurado?» — é a lista do dono, e
+ * tem de ser exigente: se a Maria não executa serviço nenhum, isso é um recado
+ * que alguém tem de ver.
+ *
+ * Esta responde a «um cliente consegue marcar agora?», e tem de ser permissiva
+ * pela mesma razão que a outra é exigente. Uma clínica com cinco profissionais,
+ * quatro deles prontos, recebe marcações. Fechar a página por causa do quinto
+ * é castigar o cliente por uma tarefa do dono.
+ *
+ * Era o que acontecia a 26/08: tudo configurado menos uma pessoa por ligar, e a
+ * página pública a dizer «Marcação online indisponível» a toda a gente.
+ *
+ * O erro não foi nenhum dos sinais — foi usar a mesma resposta para as duas
+ * perguntas. As duas funções partilham os sinais e divergem no critério, que é
+ * o que se queria desde o início.
+ */
+export function podeMarcar(sinais: SinaisDePreparacao): boolean {
+  return (
+    sinais.unidades > 0 &&
+    sinais.servicos > 0 &&
+    sinais.horariosDaUnidade > 0 &&
+    // Basta um. Quem estiver pronto atende; quem não estiver aparece na lista
+    // do dono, não na cara do cliente.
+    sinais.profissionaisProntos > 0
+  );
 }
 
 /**

@@ -114,6 +114,9 @@ export default async function ComecarPage({
     profissionaisSemHorario: listaDaEquipa.filter(
       (p) => p.accepts_online_booking && !comHorario.has(p.id),
     ).length,
+    profissionaisProntos: listaDaEquipa.filter(
+      (p) => p.accepts_online_booking && comServico.has(p.id) && comHorario.has(p.id),
+    ).length,
     horarios: (horarios.data ?? []).length,
     horariosDaUnidade: horariosDaUnidade.count ?? 0,
   });

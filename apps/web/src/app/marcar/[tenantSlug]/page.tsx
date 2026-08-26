@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { createAnonClient, getPublicTenantBySlug } from '@totalmobi/database';
-import { preparacao } from '@totalmobi/shared';
+import { podeMarcar } from '@totalmobi/shared';
 
 import { resolveBranding } from '@/lib/branding';
 
@@ -155,14 +155,23 @@ export default async function PaginaPublica({
    * que não devolve nada parece avariado; um aviso honesto parece por abrir, e
    * é a verdade.
    *
-   * A mesma função corre no painel do dono, onde diz exatamente o que falta.
+   * MAS NÃO É A MESMA PERGUNTA DO PAINEL
+   *
+   * Durante um dia esta porta usou `preparacao()`, a lista de configuração do
+   * dono. O resultado foi uma clínica com cinco profissionais, quatro deles
+   * prontos, a mostrar «Marcação online indisponível» a toda a gente — porque o
+   * quinto não estava ligado a serviço nenhum.
+   *
+   * Uma tarefa por fazer do lado do dono não é razão para fechar a porta ao
+   * cliente. `podeMarcar()` pergunta só se **alguém** consegue ser marcado; a
+   * lista do dono continua a assinalar quem falta configurar.
    */
   // `equipa` já vem filtrada por `accepts_online_booking`, por isso aqui basta
   // ver quem não tem ligação nenhuma.
   const comServico = new Set(ligacoes.map((l) => l.staff_id));
   const comHorario = new Set(horarios.map((h) => h.staff_id));
 
-  const estado = preparacao({
+  const aceitaMarcacoes = podeMarcar({
     unidades: perfil.locations.length,
     servicos: servicos.length,
     profissionais: equipa.length,
@@ -171,6 +180,8 @@ export default async function PaginaPublica({
     profissionaisSemHorario: equipa.filter((p) => !comHorario.has(p.id)).length,
     horarios: horarios.length,
     horariosDaUnidade,
+    profissionaisProntos: equipa.filter((p) => comServico.has(p.id) && comHorario.has(p.id))
+      .length,
   });
   const branding = resolveBranding({
     primaryColor: perfil.branding.primary_color,
@@ -215,7 +226,7 @@ export default async function PaginaPublica({
         </header>
 
         <main className="mx-auto max-w-2xl px-5 py-6 pb-24">
-          {!estado.pronta || !unidade ? (
+          {!aceitaMarcacoes || !unidade ? (
             <div className="rounded-(--radius-md) border border-(--line) bg-(--surface) px-5 py-8 text-center">
               <p className="font-medium">Marcação online indisponível</p>
               <p className="mt-1 text-(length:--text-sm) text-(--ink-muted)">
