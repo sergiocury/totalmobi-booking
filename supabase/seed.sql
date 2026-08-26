@@ -1,9 +1,11 @@
 -- =============================================================================
 -- Seed de desenvolvimento — Totalmobi Booking
 --
--- Dois tenants de segmentos deliberadamente diferentes. O segundo não é
+-- Três tenants de propósitos deliberadamente diferentes. O segundo não é
 -- decoração: é a prova, a cada `db reset`, de que o sistema não está a ser
--- construído para clínicas com uns cabeleireiros por cima.
+-- construído para clínicas com uns cabeleireiros por cima. O terceiro é o
+-- banco de ensaio de densidade — 41 profissionais e 14 serviços — porque um
+-- painel que se porta bem com duas pessoas não prova nada.
 --
 -- Este ficheiro corre com `supabase db reset` e é idempotente.
 -- NÃO correr em produção.
@@ -15,6 +17,7 @@ do $$
 declare
   v_sorriso uuid := '11111111-1111-4111-8111-111111111111';
   v_bella   uuid := '22222222-2222-4222-8222-222222222222';
+  v_atlantico uuid := '33333333-3333-4333-8333-333333333333';
 begin
 
   -- ---------------------------------------------------------------------------
@@ -26,7 +29,7 @@ begin
     country_code, default_timezone, default_locale, default_currency
   ) values (
     v_sorriso, 'clinica-sorriso', 'Clínica Sorriso Lisboa',
-    'Sorriso — Medicina Dentária, Lda.', 'dental', 'active', 'premium',
+    'Sorriso — Medicina Dentária, Lda.', 'dental', 'active', 'ai',
     'geral@clinicasorriso.pt', '+351213456789', '+351213456789',
     'https://clinicasorriso.pt',
     'PT', 'Europe/Lisbon', 'pt-PT', 'EUR'
@@ -123,13 +126,122 @@ begin
   values (v_bella, 'chatbot_ai', true, 'Piloto comercial — rever em 2026-12')
   on conflict (tenant_id, feature_key) do nothing;
 
+
+  -- ---------------------------------------------------------------------------
+  -- Catálogo, equipa e horários das duas primeiras
+  -- ---------------------------------------------------------------------------
+  -- A nota no fim deste ficheiro dizia que isto «chega no Milestone 5 e 6,
+  -- quando as tabelas existirem». As tabelas existem desde a 0009 e a 0011, e
+  -- o seed continuou a parar nas unidades. Consequência prática: um `db reset`
+  -- devolvia duas empresas que a página pública recusava, porque `preparacao()`
+  -- exige serviço, profissional, ligação e horário — e o seed dava nenhum.
+  insert into booking.services (id, tenant_id, name, slug, duration_minutes, price, currency)
+  values
+    ('11111111-5555-4555-8555-000000000001', v_sorriso, 'Limpeza dentária', 'limpeza-dentaria', 45, 65.00, 'EUR'),
+    ('11111111-5555-4555-8555-000000000002', v_sorriso, 'Consulta de avaliação', 'consulta-avaliacao', 30, 40.00, 'EUR'),
+    ('22222222-5555-4555-8555-000000000001', v_bella, 'Corte e brushing', 'corte-brushing', 60, 35.00, 'EUR'),
+    ('22222222-5555-4555-8555-000000000002', v_bella, 'Coloração', 'coloracao', 120, 75.00, 'EUR')
+  on conflict (id) do nothing;
+
+  insert into booking.staff (id, tenant_id, full_name, job_title)
+  values
+    ('11111111-6666-4666-8666-000000000001', v_sorriso, 'Ana Martins', 'Médica dentista'),
+    ('22222222-6666-4666-8666-000000000001', v_bella, 'Rita Nunes', 'Cabeleireira')
+  on conflict (id) do nothing;
+
+  insert into booking.staff_services (staff_id, service_id)
+  select p.id, sv.id
+  from booking.staff p
+  join booking.services sv on sv.tenant_id = p.tenant_id
+  where p.tenant_id in (v_sorriso, v_bella)
+  on conflict (staff_id, service_id) do nothing;
+
+  -- Segunda a sexta, 09:00–18:00, na unidade por omissão de cada empresa.
+  insert into booking.staff_working_hours (staff_id, location_id, weekday, starts_at, ends_at)
+  select p.id, l.id, d, time '09:00', time '18:00'
+  from booking.staff p
+  join booking.locations l on l.tenant_id = p.tenant_id and l.is_default
+  cross join generate_series(1, 5) as d
+  where p.tenant_id in (v_sorriso, v_bella)
+  on conflict do nothing;
+
+  -- ---------------------------------------------------------------------------
+  -- Tenant 3 — Policlínica Atlântico (banco de ensaio de densidade)
+  -- ---------------------------------------------------------------------------
+  -- Existe para uma pergunta só: **o painel aguenta uma clínica grande?** Foi
+  -- construída à mão durante o trabalho de agosto para pôr à prova as páginas
+  -- de Equipa e Horários com 41 pessoas, e nunca ficou escrita em lado nenhum.
+  -- Quando se apagou a base para recomeçar, perdeu-se — e a razão de a perder
+  -- foi não estar aqui.
+  --
+  -- Gerada com `generate_series` em vez de 41 linhas escritas à mão: o número
+  -- passa a ser um parâmetro, e trocar 41 por 200 é mudar um algarismo.
+  insert into booking.tenants (
+    id, slug, display_name, legal_name, segment, status, plan_code,
+    email, country_code, default_timezone, default_locale, default_currency
+  ) values (
+    v_atlantico, 'policlinica-atlantico', 'Policlínica Atlântico',
+    'Atlântico Saúde, S.A.', 'medical', 'active', 'professional',
+    'geral@atlantico.pt', 'PT', 'Europe/Lisbon', 'pt-PT', 'EUR'
+  )
+  on conflict (id) do nothing;
+
+  insert into booking.locations (
+    id, tenant_id, name, slug, city, country_code, timezone, is_default, sort_order
+  ) values
+    ('33333333-0000-4000-8000-000000000001', v_atlantico, 'Sede — Avenidas Novas', 'sede', 'Lisboa', 'PT', 'Europe/Lisbon', true, 1),
+    ('33333333-0000-4000-8000-000000000002', v_atlantico, 'Polo Norte — Matosinhos', 'polo-norte', 'Matosinhos', 'PT', 'Europe/Lisbon', false, 2)
+  on conflict (id) do nothing;
+
+  insert into booking.services (tenant_id, name, slug, duration_minutes, price, currency, sort_order)
+  select
+    v_atlantico,
+    'Especialidade ' || n,
+    'especialidade-' || n,
+    15 * (1 + (n % 4)),
+    30.00 + n,
+    'EUR',
+    n
+  from generate_series(1, 14) as n
+  on conflict do nothing;
+
+  insert into booking.staff (tenant_id, full_name, job_title, sort_order)
+  select
+    v_atlantico,
+    'Profissional ' || lpad(n::text, 2, '0'),
+    case when n % 3 = 0 then 'Enfermeiro(a)' else 'Médico(a)' end,
+    n
+  from generate_series(1, 41) as n
+  on conflict do nothing;
+
+  -- Cada pessoa faz duas ou três especialidades, distribuídas de forma
+  -- determinista. Todos a fazerem tudo não exercitaria a filtragem.
+  insert into booking.staff_services (staff_id, service_id)
+  select p.id, sv.id
+  from (select id, row_number() over (order by sort_order) as n
+        from booking.staff where tenant_id = v_atlantico) p
+  cross join (select id, row_number() over (order by sort_order) as n
+              from booking.services where tenant_id = v_atlantico) sv
+  where (p.n + sv.n) % 5 < 2
+  on conflict (staff_id, service_id) do nothing;
+
+  insert into booking.staff_working_hours (staff_id, location_id, weekday, starts_at, ends_at)
+  select p.id, l.id, d, time '08:00', time '20:00'
+  from booking.staff p
+  join booking.locations l on l.tenant_id = p.tenant_id and l.is_default
+  cross join generate_series(1, 5) as d
+  where p.tenant_id = v_atlantico
+  on conflict do nothing;
+
 end $$;
 
 -- =============================================================================
 -- Notas
 --
--- · Serviços, profissionais, horários e marcações chegam no Milestone 5 e 6,
---   quando as tabelas existirem. Semear agora obrigaria a inventar schema.
+-- · As marcações continuam por semear: dependem de datas, e um seed com datas
+--   fixas envelhece mal. Serviços, equipa, ligações e horários já cá estão —
+--   sem eles `preparacao()` considera as empresas por abrir, e a página pública
+--   recusa-se a marcar.
 --
 -- · Não se criam utilizadores nem memberships aqui: as contas vivem em
 --   auth.users, que neste projeto é PARTILHADO com o Totalmobi CMS. Os testes
