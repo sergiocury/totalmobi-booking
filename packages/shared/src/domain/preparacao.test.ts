@@ -10,6 +10,7 @@ const nada: SinaisDePreparacao = {
   horarios: 0,
   horariosDaUnidade: 0,
   profissionaisSemServico: 0,
+  profissionaisSemHorario: 0,
 };
 
 const tudo: SinaisDePreparacao = {
@@ -20,6 +21,7 @@ const tudo: SinaisDePreparacao = {
   horarios: 10,
   horariosDaUnidade: 5,
   profissionaisSemServico: 0,
+  profissionaisSemHorario: 0,
 };
 
 describe('preparacao', () => {
@@ -103,6 +105,20 @@ describe('preparacao', () => {
    * nunca fica bloqueado a meio de um passo — não se atribuem serviços a
    * ninguém antes de haver serviços e pessoas.
    */
+  /**
+   * Alguém acrescentado depois do horário estar definido.
+   *
+   * As linhas das outras pessoas continuam lá, por isso `horarios` continua
+   * maior do que zero. Sem este sinal, a pessoa nova ficava sem horário e sem
+   * aviso — e uma pessoa sem horário nunca tem uma hora para oferecer.
+   */
+  it('um profissional sem horário impede a preparação, mesmo havendo horários', () => {
+    const r = preparacao({ ...tudo, profissionaisSemHorario: 1 });
+
+    expect(r.pronta).toBe(false);
+    expect(r.emFalta.map((p) => p.chave)).toEqual(['horarios']);
+  });
+
   it('a ordem dos passos é a ordem em que se fazem', () => {
     expect(preparacao(nada).passos.map((p) => p.chave)).toEqual([
       'unidades',
@@ -163,7 +179,7 @@ describe('preparacao', () => {
   });
 
   it('cada sinal que conta problemas bloqueia quando é maior do que zero', () => {
-    const contaProblemas = ['profissionaisSemServico'] as const;
+    const contaProblemas = ['profissionaisSemServico', 'profissionaisSemHorario'] as const;
 
     for (const chave of contaProblemas) {
       expect(preparacao({ ...tudo, [chave]: 1 }).pronta, `${chave} não bloqueia`).toBe(false);
@@ -179,7 +195,7 @@ describe('preparacao', () => {
       'horarios',
       'horariosDaUnidade',
     ];
-    const contaProblemas = ['profissionaisSemServico'];
+    const contaProblemas = ['profissionaisSemServico', 'profissionaisSemHorario'];
 
     expect([...temDeExistir, ...contaProblemas].sort()).toEqual(Object.keys(tudo).sort());
   });

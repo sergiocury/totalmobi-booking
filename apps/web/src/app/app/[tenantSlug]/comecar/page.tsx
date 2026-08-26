@@ -79,7 +79,9 @@ export default async function ComecarPage({
       .eq('is_active', true),
     context.client
       .from('staff_working_hours')
-      .select('id, staff!inner(tenant_id)', { count: 'exact', head: true })
+  // As linhas, não a contagem: uma contagem responde «há horários», e a
+  // pergunta é «quem não tem».
+      .select('staff_id, staff!inner(tenant_id)')
       .eq('staff.tenant_id', context.tenantId),
     context.client
       .from('location_business_hours')
@@ -99,6 +101,7 @@ export default async function ComecarPage({
    * a falso.
    */
   const comServico = new Set((ligacoes.data ?? []).map((l) => l.staff_id));
+  const comHorario = new Set((horarios.data ?? []).map((h) => h.staff_id));
 
   const estado = preparacao({
     unidades: listaDeUnidades.length,
@@ -108,7 +111,10 @@ export default async function ComecarPage({
     profissionaisSemServico: listaDaEquipa.filter(
       (p) => p.accepts_online_booking && !comServico.has(p.id),
     ).length,
-    horarios: horarios.count ?? 0,
+    profissionaisSemHorario: listaDaEquipa.filter(
+      (p) => p.accepts_online_booking && !comHorario.has(p.id),
+    ).length,
+    horarios: (horarios.data ?? []).length,
     horariosDaUnidade: horariosDaUnidade.count ?? 0,
   });
 

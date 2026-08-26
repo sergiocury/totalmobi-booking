@@ -69,6 +69,18 @@ export interface SinaisDePreparacao {
    * lado de fora não há nada a indicar que existem mais pessoas.
    */
   profissionaisSemServico: number;
+  /**
+   * Profissionais que aceitam marcação online e não têm horário nenhum.
+   *
+   * O mesmo problema pelo outro lado. Uma pessoa acrescentada depois de o
+   * horário estar definido — pela página de Equipa, ou por se voltar ao
+   * assistente — fica sem horário, e uma pessoa sem horário nunca tem uma hora
+   * livre para oferecer.
+   *
+   * O sinal `horarios` não apanha isto: conta linhas, e as linhas das outras
+   * pessoas já lá estavam.
+   */
+  profissionaisSemHorario: number;
   /** Linhas de horário de trabalho da equipa. */
   horarios: number;
   /**
@@ -146,10 +158,13 @@ export function preparacao(sinais: SinaisDePreparacao): Preparacao {
       titulo: 'Definir horários',
       porque:
         'A que horas abre a unidade e quem trabalha quando. As horas oferecidas são a ' +
-        'interseção das duas coisas — falta uma, não há hora nenhuma.',
+        'interseção das duas coisas, e quem não tiver horário não recebe marcações.',
       caminho: 'horarios',
-      // Os dois, e não um ou outro. Ver a nota em `horariosDaUnidade`.
-      feito: sinais.horarios > 0 && sinais.horariosDaUnidade > 0,
+      // As duas tabelas, e ninguém de fora. Ver as notas nos dois sinais.
+      feito:
+        sinais.horarios > 0 &&
+        sinais.horariosDaUnidade > 0 &&
+        sinais.profissionaisSemHorario === 0,
     },
   ];
 

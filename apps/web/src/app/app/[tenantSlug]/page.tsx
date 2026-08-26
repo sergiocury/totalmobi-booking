@@ -66,7 +66,9 @@ export default async function TenantOverviewPage({
       .eq('is_active', true),
     context.client
       .from('staff_working_hours')
-      .select('id, staff!inner(tenant_id)', { count: 'exact', head: true })
+  // As linhas, não a contagem: uma contagem responde «há horários», e a
+  // pergunta é «quem não tem».
+      .select('staff_id, staff!inner(tenant_id)')
       .eq('staff.tenant_id', context.tenantId),
     context.client
       .from('location_business_hours')
@@ -82,6 +84,7 @@ export default async function TenantOverviewPage({
    * a falso.
    */
   const comServico = new Set((ligacoes.data ?? []).map((l) => l.staff_id));
+  const comHorario = new Set((horarios.data ?? []).map((h) => h.staff_id));
 
   const estado = preparacao({
     unidades: unidades.count ?? 0,
@@ -91,7 +94,10 @@ export default async function TenantOverviewPage({
     profissionaisSemServico: (equipa.data ?? []).filter(
       (p) => p.accepts_online_booking && !comServico.has(p.id),
     ).length,
-    horarios: horarios.count ?? 0,
+    profissionaisSemHorario: (equipa.data ?? []).filter(
+      (p) => p.accepts_online_booking && !comHorario.has(p.id),
+    ).length,
+    horarios: (horarios.data ?? []).length,
     horariosDaUnidade: horariosDaUnidade.count ?? 0,
   });
 
@@ -236,7 +242,11 @@ export default async function TenantOverviewPage({
           {
             href: `/app/${tenantSlug}/equipa`,
             label: 'Equipa',
-            count: equipa.count ?? 0,
+            // `equipa` deixou de ser uma consulta de contagem quando passou a
+            // precisar das linhas para descobrir quem não tem serviços. Ficou
+            // aqui um `.count` que passou a ser `null`, e o cartão dizia 0 com
+            // duas pessoas na equipa.
+            count: (equipa.data ?? []).length,
             texto: 'Quem atende e o que cada um faz.',
           },
         ].map((passo) => (

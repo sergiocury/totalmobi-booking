@@ -72,7 +72,7 @@ async function carregar(slug: string) {
    * existe pelo menos um. As horas concretas são trabalho do motor de
    * disponibilidade, e esse já as vai buscar quando alguém escolhe um serviço.
    */
-  const [{ data: ligacoes }, { count: horarios }, { count: horariosDaUnidade }] = await Promise.all([
+  const [{ data: ligacoes }, { data: horarios }, { count: horariosDaUnidade }] = await Promise.all([
     client
       .from('staff_services')
       .select('staff_id, service_id, staff!inner(tenant_id)')
@@ -80,7 +80,7 @@ async function carregar(slug: string) {
       .eq('is_active', true),
     client
       .from('staff_working_hours')
-      .select('id, staff!inner(tenant_id)', { count: 'exact', head: true })
+      .select('staff_id, staff!inner(tenant_id)')
       .eq('staff.tenant_id', perfil.value.tenant.id),
     client
       .from('location_business_hours')
@@ -93,7 +93,7 @@ async function carregar(slug: string) {
     servicos: servicos ?? [],
     equipa: equipa ?? [],
     ligacoes: ligacoes ?? [],
-    horarios: horarios ?? 0,
+    horarios: horarios ?? [],
     horariosDaUnidade: horariosDaUnidade ?? 0,
   };
 }
@@ -160,6 +160,7 @@ export default async function PaginaPublica({
   // `equipa` já vem filtrada por `accepts_online_booking`, por isso aqui basta
   // ver quem não tem ligação nenhuma.
   const comServico = new Set(ligacoes.map((l) => l.staff_id));
+  const comHorario = new Set(horarios.map((h) => h.staff_id));
 
   const estado = preparacao({
     unidades: perfil.locations.length,
@@ -167,7 +168,8 @@ export default async function PaginaPublica({
     profissionais: equipa.length,
     ligacoes: ligacoes.length,
     profissionaisSemServico: equipa.filter((p) => !comServico.has(p.id)).length,
-    horarios,
+    profissionaisSemHorario: equipa.filter((p) => !comHorario.has(p.id)).length,
+    horarios: horarios.length,
     horariosDaUnidade,
   });
   const branding = resolveBranding({
