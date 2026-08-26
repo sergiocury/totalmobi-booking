@@ -111,7 +111,12 @@ export function Marcacao({
   const [motivo, setMotivo] = useState<string | null>(null);
   const [aCarregar, setACarregar] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [feito, setFeito] = useState<{ token?: string | undefined; status: string } | null>(null);
+  const [feito, setFeito] = useState<{
+    token?: string | undefined;
+    status: string;
+    staffId: string | null;
+    startAt: string;
+  } | null>(null);
   const [aEnviar, iniciarEnvio] = useTransition();
 
   const servico = servicos.find((s) => s.id === servicoId) ?? null;
@@ -222,7 +227,12 @@ export function Marcacao({
       });
 
       if (r.ok) {
-        setFeito({ token: r.ok.accessToken, status: r.ok.status });
+        setFeito({
+          token: r.ok.accessToken,
+          status: r.ok.status,
+          staffId: r.ok.staffId,
+          startAt: r.ok.startAt,
+        });
         return;
       }
 
@@ -243,7 +253,16 @@ export function Marcacao({
   }
 
   if (feito) {
-    return <Confirmado status={feito.status} token={feito.token} />;
+    return (
+      <Confirmado
+        status={feito.status}
+        token={feito.token}
+        servico={servico?.nome ?? null}
+        profissional={equipa.find((p) => p.id === feito.staffId)?.nome ?? null}
+        quando={feito.startAt}
+        timezone={timezone}
+      />
+    );
   }
 
   return (
@@ -583,15 +602,74 @@ function Escolha({
   );
 }
 
-function Confirmado({ status, token }: { status: string; token?: string | undefined }) {
+function Confirmado({
+  status,
+  token,
+  servico,
+  profissional,
+  quando,
+  timezone,
+}: {
+  status: string;
+  token?: string | undefined;
+  servico: string | null;
+  profissional: string | null;
+  quando: string;
+  timezone: string;
+}) {
   const porConfirmar = status === 'awaiting_confirmation';
+
+  /*
+   * O resumo do que ficou marcado — sobretudo **com quem**.
+   *
+   * Isto dizia «Marcação feita» e mais nada. Quem escolhe «Qualquer
+   * profissional», que é a opção por omissão, não ficava a saber quem lhe
+   * calhou, nem via a hora confirmada em lado nenhum.
+   *
+   * O nome do profissional é o que resolve a confusão que deu origem a isto:
+   * duas marcações à mesma hora com pessoas diferentes são normais numa clínica
+   * com equipa, e sem o nome no ecrã parecem a mesma hora marcada duas vezes.
+   *
+   * A hora é formatada no fuso da unidade, não no do browser. Quem marca de
+   * férias no estrangeiro tem de ver a hora a que a clínica o espera.
+   */
+  const dataHora = new Intl.DateTimeFormat('pt-PT', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: timezone,
+  }).format(new Date(quando));
 
   return (
     <div className="rounded-(--radius-md) border border-(--line) bg-(--surface) px-5 py-8 text-center">
       <p className="text-(length:--text-lg) font-semibold">
         {porConfirmar ? 'Pedido enviado' : 'Marcação feita'}
       </p>
-      <p className="mx-auto mt-2 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
+
+      <dl className="mx-auto mt-5 max-w-xs space-y-2 text-left">
+        {servico ? (
+          <div className="flex justify-between gap-4">
+            <dt className="text-(length:--text-sm) text-(--ink-muted)">Serviço</dt>
+            <dd className="text-(length:--text-sm) font-medium">{servico}</dd>
+          </div>
+        ) : null}
+
+        <div className="flex justify-between gap-4">
+          <dt className="text-(length:--text-sm) text-(--ink-muted)">Quando</dt>
+          <dd className="text-right text-(length:--text-sm) font-medium">{dataHora}</dd>
+        </div>
+
+        {profissional ? (
+          <div className="flex justify-between gap-4">
+            <dt className="text-(length:--text-sm) text-(--ink-muted)">Com</dt>
+            <dd className="text-(length:--text-sm) font-medium">{profissional}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      <p className="mx-auto mt-5 max-w-prose text-(length:--text-sm) text-pretty text-(--ink-muted)">
         {porConfirmar
           ? 'Vamos confirmar a sua marcação e avisá-lo por mensagem.'
           : 'Vai receber a confirmação por mensagem.'}

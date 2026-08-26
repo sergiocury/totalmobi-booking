@@ -131,6 +131,8 @@ export interface EstadoMarcacao {
     bookingId: string;
     accessToken?: string | undefined;
     status: string;
+    staffId: string | null;
+    startAt: string;
   };
   erro?: string;
   /** `true` quando a hora foi ocupada entretanto — o ecrã volta à grelha. */
@@ -216,11 +218,28 @@ export async function marcar(entrada: {
     });
   }
 
+  /*
+   * O profissional atribuído e a hora vão de volta para o ecrã.
+   *
+   * Sem isto a confirmação dizia «Marcação feita» e mais nada — nem hora, nem
+   * dia, nem com quem. Quem escolhe «Qualquer profissional» — que é a opção por
+   * omissão, e portanto o caso comum — nunca ficava a saber quem lhe calhou.
+   *
+   * O efeito prático apareceu a testar: marcar às 14:30, ver a hora continuar
+   * disponível (porque outra pessoa está livre), marcar outra vez, e ficar com
+   * a ideia de que o sistema aceitou a mesma hora duas vezes. Aceitou duas
+   * marcações à mesma hora com **pessoas diferentes**, que é outra coisa — mas
+   * o ecrã não dava maneira de perceber a diferença.
+   *
+   * A função atómica já devolvia os dois campos. Só não estavam a ser usados.
+   */
   return {
     ok: {
       bookingId: resultado.value.bookingId,
       accessToken: resultado.value.accessToken,
       status: resultado.value.status,
+      staffId: resultado.value.staffId ?? null,
+      startAt: resultado.value.startAt ?? entrada.startAt,
     },
   };
 }
