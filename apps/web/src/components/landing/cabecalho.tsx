@@ -54,7 +54,18 @@ export function Cabecalho() {
           <LogoBooking altura={42} prioridade />
         </Link>
 
-        <nav aria-label="Secções" className="ml-auto hidden items-center gap-1 md:flex">
+        {/*
+          O menu completo só a partir de `lg`, e não de `md`.
+
+          Aos 800 px os cinco itens já partiam palavras em duas linhas — "Link
+          público" empilhado sobre si mesmo — e com o logótipo maior a barra
+          passou a transbordar: 801 px de conteúdo numa janela de 800, com o
+          botão "Começar agora" cortado.
+          
+          Aumentar o ponto de corte resolve as duas coisas de uma vez: entre os
+          768 e os 1024 mostra-se o botão de menu, que já existe e cabe sempre.
+        */}
+        <nav aria-label="Secções" className="ml-auto hidden items-center gap-1 lg:flex">
           {SECCOES.map((s) => (
             <a
               key={s.href}
@@ -81,7 +92,7 @@ export function Cabecalho() {
             type="button"
             onClick={() => setAberto(true)}
             aria-label="Abrir menu"
-            className="flex size-11 cursor-pointer items-center justify-center rounded-(--radius-sm) border border-(--line) md:hidden"
+            className="flex size-11 cursor-pointer items-center justify-center rounded-(--radius-sm) border border-(--line) lg:hidden"
           >
             <span aria-hidden className="flex flex-col gap-1">
               <span className="block h-0.5 w-4 bg-(--ink)" />
