@@ -45,7 +45,7 @@ export default async function TenantOverviewPage({
       .is('archived_at', null),
     context.client
       .from('staff')
-      .select('id', { count: 'exact', head: true })
+      .select('id, accepts_online_booking')
       .eq('tenant_id', context.tenantId)
       .is('archived_at', null),
     context.client
@@ -59,7 +59,9 @@ export default async function TenantOverviewPage({
     // o número desta página é o desta empresa.
     context.client
       .from('staff_services')
-      .select('staff_id, staff!inner(tenant_id)', { count: 'exact', head: true })
+      // As linhas, não a contagem: é preciso saber **quem** está ligado, para
+      // descobrir quem não está. Uma contagem só responde «pelo menos um».
+      .select('staff_id, staff!inner(tenant_id)')
       .eq('staff.tenant_id', context.tenantId)
       .eq('is_active', true),
     context.client
@@ -72,11 +74,23 @@ export default async function TenantOverviewPage({
       .eq('locations.tenant_id', context.tenantId),
   ]);
 
+  /*
+   * Quem aceita marcações e não executa nada.
+   *
+   * Só conta quem aceita marcação online: um rececionista na lista de equipa
+   * não tem de estar ligado a serviço nenhum, e teria `accepts_online_booking`
+   * a falso.
+   */
+  const comServico = new Set((ligacoes.data ?? []).map((l) => l.staff_id));
+
   const estado = preparacao({
     unidades: unidades.count ?? 0,
     servicos: servicos.count ?? 0,
-    profissionais: equipa.count ?? 0,
-    ligacoes: ligacoes.count ?? 0,
+    profissionais: (equipa.data ?? []).length,
+    ligacoes: (ligacoes.data ?? []).length,
+    profissionaisSemServico: (equipa.data ?? []).filter(
+      (p) => p.accepts_online_booking && !comServico.has(p.id),
+    ).length,
     horarios: horarios.count ?? 0,
     horariosDaUnidade: horariosDaUnidade.count ?? 0,
   });

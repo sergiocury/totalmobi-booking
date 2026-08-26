@@ -277,11 +277,14 @@ export function PassoLigacoes({
   tenantSlug,
   equipa,
   servicos,
+  existentes,
 }: {
   tenantId: string;
   tenantSlug: string;
   equipa: { id: string; full_name: string }[];
   servicos: { id: string; name: string }[];
+  /** Pares `staffId:serviceId` que já estão ligados. */
+  existentes: Set<string>;
 }) {
   const [estado, acao, aEnviar] = useActionState(
     ligarServicos.bind(null, tenantId, tenantSlug),
@@ -297,13 +300,23 @@ export function PassoLigacoes({
             <div className="flex flex-wrap gap-x-5 gap-y-2.5">
               {servicos.map((servico) => (
                 <label key={servico.id} className="flex cursor-pointer items-center gap-2">
-                  {/* Tudo pré-marcado: numa clínica pequena toda a gente faz
-                      tudo, e desmarcar duas caixas é mais rápido do que marcar
-                      oito. */}
+                  {/*
+                    Marcado se já estiver ligado, ou se esta pessoa ainda não
+                    tiver ligação nenhuma.
+
+                    Pré-marcar tudo era prático para quem está a começar — numa
+                    clínica pequena toda a gente faz tudo — mas desfazia
+                    escolhas deliberadas de quem voltasse a este passo: as
+                    caixas que tinham sido desmarcadas apareciam marcadas outra
+                    vez, e gravar voltava a ligar tudo.
+                  */}
                   <input
                     type="checkbox"
                     name={`lig-${pessoa.id}-${servico.id}`}
-                    defaultChecked
+                    defaultChecked={
+                      existentes.has(`${pessoa.id}:${servico.id}`) ||
+                      !servicos.some((x) => existentes.has(`${pessoa.id}:${x.id}`))
+                    }
                     className="size-4 accent-(--brand)"
                   />
                   <span className="text-(length:--text-sm)">{servico.name}</span>

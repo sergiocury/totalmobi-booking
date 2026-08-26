@@ -157,11 +157,16 @@ export default async function PaginaPublica({
    *
    * A mesma função corre no painel do dono, onde diz exatamente o que falta.
    */
+  // `equipa` já vem filtrada por `accepts_online_booking`, por isso aqui basta
+  // ver quem não tem ligação nenhuma.
+  const comServico = new Set(ligacoes.map((l) => l.staff_id));
+
   const estado = preparacao({
     unidades: perfil.locations.length,
     servicos: servicos.length,
     profissionais: equipa.length,
     ligacoes: ligacoes.length,
+    profissionaisSemServico: equipa.filter((p) => !comServico.has(p.id)).length,
     horarios,
     horariosDaUnidade,
   });

@@ -23,6 +23,16 @@
  * O motor de disponibilidade precisa dos cinco. Faltando um, não há hora
  * possível — e é melhor dizê-lo do que deixar alguém procurá-la.
  *
+ * OS SINAIS SÃO CONTAGENS EXATAS, NÃO «PELO MENOS UM»
+ *
+ * Duas vezes a mesma lição, pelo mesmo motivo. `ligacoes > 0` dava o passo por
+ * feito com uma clínica de dois profissionais em que só um estava ligado a um
+ * serviço — e o segundo não aparecia na página pública, sem aviso nenhum, nem
+ * sequer no seletor de profissional, que se esconde quando sobra um só.
+ *
+ * Um sinal que responde «pelo menos um» a uma pergunta sobre «todos» está a
+ * responder a outra pergunta.
+ *
  * O PASSO DOS HORÁRIOS SÃO DUAS TABELAS, NÃO UMA
  *
  * A primeira versão desta função contava só `staff_working_hours` e dava o
@@ -47,6 +57,18 @@ export interface SinaisDePreparacao {
   profissionais: number;
   /** Ligações ativas entre profissional e serviço. */
   ligacoes: number;
+  /**
+   * Profissionais que aceitam marcação online e não executam serviço nenhum.
+   *
+   * Contam-se à parte porque `ligacoes > 0` é um sinal grosseiro: satisfaz-se
+   * com **uma** ligação, e uma clínica com cinco pessoas e uma ligação passava
+   * na verificação com quatro profissionais invisíveis.
+   *
+   * Invisíveis mesmo: a página pública só oferece quem executa o serviço
+   * escolhido, e o seletor de profissional nem aparece quando sobra um só. Do
+   * lado de fora não há nada a indicar que existem mais pessoas.
+   */
+  profissionaisSemServico: number;
   /** Linhas de horário de trabalho da equipa. */
   horarios: number;
   /**
@@ -113,9 +135,11 @@ export function preparacao(sinais: SinaisDePreparacao): Preparacao {
     {
       chave: 'ligacoes',
       titulo: 'Dizer quem faz o quê',
-      porque: 'Um serviço que ninguém executa nunca aparece com horas disponíveis.',
+      porque:
+        'Um serviço que ninguém executa nunca aparece com horas. E um profissional sem ' +
+        'serviços nunca aparece para ser escolhido.',
       caminho: 'equipa',
-      feito: sinais.ligacoes > 0,
+      feito: sinais.ligacoes > 0 && sinais.profissionaisSemServico === 0,
     },
     {
       chave: 'horarios',

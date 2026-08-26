@@ -9,6 +9,7 @@ const nada: SinaisDePreparacao = {
   ligacoes: 0,
   horarios: 0,
   horariosDaUnidade: 0,
+  profissionaisSemServico: 0,
 };
 
 const tudo: SinaisDePreparacao = {
@@ -18,6 +19,7 @@ const tudo: SinaisDePreparacao = {
   ligacoes: 4,
   horarios: 10,
   horariosDaUnidade: 5,
+  profissionaisSemServico: 0,
 };
 
 describe('preparacao', () => {
@@ -50,6 +52,21 @@ describe('preparacao', () => {
 
     expect(r.pronta).toBe(false);
     expect(r.emFalta.map((p) => p.chave)).toEqual(['equipa', 'ligacoes', 'horarios']);
+  });
+
+  /**
+   * O caso de 26/08, segunda parte.
+   *
+   * Uma clínica com dois profissionais e uma ligação. `ligacoes > 0` dava o
+   * passo por feito, e a segunda pessoa não aparecia na página pública — nem
+   * sequer no seletor de profissional, que se esconde quando sobra um só a
+   * executar o serviço escolhido. Ninguém era avisado de nada.
+   */
+  it('um profissional sem serviços impede a preparação, mesmo havendo ligações', () => {
+    const r = preparacao({ ...tudo, ligacoes: 1, profissionaisSemServico: 1 });
+
+    expect(r.pronta).toBe(false);
+    expect(r.emFalta.map((p) => p.chave)).toEqual(['ligacoes']);
   });
 
   it('equipa sem serviços atribuídos não está pronta', () => {
@@ -118,13 +135,52 @@ describe('preparacao', () => {
     }
   });
 
-  it('só está pronta quando nenhum sinal está a zero', () => {
-    const chaves = Object.keys(nada) as (keyof SinaisDePreparacao)[];
+  /**
+   * Há dois tipos de sinal, e convém dizê-lo em voz alta.
+   *
+   * Quase todos contam coisas que **têm de existir**: unidades, serviços,
+   * pessoas, horários. `profissionaisSemServico` conta o contrário — um
+   * problema — e por isso o seu valor bom é zero.
+   *
+   * Este teste existia numa versão que percorria todas as chaves e punha cada
+   * uma a zero à espera que isso bloqueasse. Deixou de servir no dia em que
+   * entrou um sinal invertido, e falhou. Fica separado por tipo: se alguém
+   * acrescentar um sinal e não o classificar, a soma no fim não bate.
+   */
+  it('cada sinal que tem de existir bloqueia quando está a zero', () => {
+    const temDeExistir = [
+      'unidades',
+      'servicos',
+      'profissionais',
+      'ligacoes',
+      'horarios',
+      'horariosDaUnidade',
+    ] as const;
 
-    // Tirar qualquer um dos sinais chega para deixar de estar pronta. Se um dia
-    // alguém acrescentar um sinal que não é lido por passo nenhum, isto falha.
-    for (const chave of chaves) {
+    for (const chave of temDeExistir) {
       expect(preparacao({ ...tudo, [chave]: 0 }).pronta, `${chave} não bloqueia`).toBe(false);
     }
+  });
+
+  it('cada sinal que conta problemas bloqueia quando é maior do que zero', () => {
+    const contaProblemas = ['profissionaisSemServico'] as const;
+
+    for (const chave of contaProblemas) {
+      expect(preparacao({ ...tudo, [chave]: 1 }).pronta, `${chave} não bloqueia`).toBe(false);
+    }
+  });
+
+  it('os dois tipos juntos cobrem todos os sinais', () => {
+    const temDeExistir = [
+      'unidades',
+      'servicos',
+      'profissionais',
+      'ligacoes',
+      'horarios',
+      'horariosDaUnidade',
+    ];
+    const contaProblemas = ['profissionaisSemServico'];
+
+    expect([...temDeExistir, ...contaProblemas].sort()).toEqual(Object.keys(tudo).sort());
   });
 });
