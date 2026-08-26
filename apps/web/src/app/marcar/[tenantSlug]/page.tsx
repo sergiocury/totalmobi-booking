@@ -49,6 +49,10 @@ export const dynamic = 'force-dynamic';
  * de 555 ms na Vercel contra 206 ms da base. A diferença não era o SQL — era o
  * número de idas e voltas.
  *
+ * Depois destas duas correções: mediana 434 ms, e o custo fora do SQL passou de
+ * 349 ms para 228 ms. O que sobra é sobretudo arranque a frio da função, que é
+ * outro problema — ver a nota no fim deste ficheiro.
+ *
  * UMA VAGA EM VEZ DE DUAS
  *
  * As cinco consultas abaixo só precisam do id da empresa, que sai da primeira.
@@ -275,3 +279,27 @@ export default async function PaginaPublica({
     </>
   );
 }
+
+/**
+ * O QUE FALTA: O ARRANQUE A FRIO
+ *
+ * Medido a 2026-08-26: o primeiro pedido depois de a função estar parada custou
+ * 2365 ms; os catorze seguintes, 387 a 801 ms. Não é a base — as mesmas
+ * consultas medidas contra o PostgREST deram mediana de 206 ms e **zero**
+ * pedidos acima de um segundo, com cinquenta profissionais.
+ *
+ * O peso vem do JavaScript que a função tem de carregar. Esta rota puxa dois
+ * pedaços grandes: `@totalmobi/database` (~200 KB, com o supabase-js) e o barril
+ * `@totalmobi/shared` (~356 KB), que arrasta luxon, zod e libphonenumber-js por
+ * exportar tudo a partir de um `index.ts` — quando daqui só se usa `podeMarcar`,
+ * que não depende de nenhum dos três.
+ *
+ * O pacote já tem exports por caminho (`./time`, `./schemas`, `./errors`,
+ * `./result`); falta um para `./domain`, e então esta página deixa de pagar o
+ * que não usa.
+ *
+ * **Mas convém dizer o tamanho real do problema:** a função só arrefece sem
+ * tráfego. Uma clínica com marcações ao longo do dia mantém-na quente e nunca vê
+ * isto. Quem paga o preço é a primeira visita da manhã — e nós, a testar uma
+ * plataforma ainda sem clientes, que apanhamos quase sempre frio.
+ */
