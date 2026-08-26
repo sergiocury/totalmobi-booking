@@ -3,6 +3,8 @@ import Link from 'next/link';
 
 import { PLANOS, planoPorCodigo } from '@totalmobi/shared';
 
+import { LogoBooking } from '@/components/logo-booking';
+
 import { FormularioDeRegisto } from './formulario';
 
 export const metadata: Metadata = {
@@ -39,11 +41,8 @@ export default async function RegistoPage({
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-16">
-      <Link href="/" className="mb-8 flex items-baseline gap-1.5">
-        <span className="text-(length:--text-lg) font-semibold tracking-(--tracking-tight)">
-          Totalmobi
-        </span>
-        <span className="text-(length:--text-lg) text-(--brand)">Booking</span>
+      <Link href="/" aria-label="Totalmobi Booking — início" className="mb-8 flex">
+        <LogoBooking altura={28} />
       </Link>
 
       <h1 className="text-(length:--text-2xl) leading-(--leading-snug) font-semibold tracking-(--tracking-tight)">

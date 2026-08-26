@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 
+import { LogoBooking } from '@/components/logo-booking';
+
 import { getCurrentUser } from '@/lib/auth/context';
 
 import { LoginForm } from './login-form';
@@ -22,13 +24,19 @@ export default async function LoginPage({
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-16">
       <div className="mb-9">
-        <p className="mb-2 text-(length:--text-xs) font-medium tracking-[0.14em] text-(--ink-subtle) uppercase">
-          Totalmobi
-        </p>
-        <h1 className="text-(length:--text-3xl) leading-(--leading-tight) font-semibold tracking-(--tracking-tight)">
-          Booking
+        {/*
+          O logótipo **dentro** do `h1`, e não ao lado dele.
+
+          Aqui a marca era a sobrescrita "TOTALMOBI" mais um `h1` a dizer
+          "Booking". Trocar isso por uma imagem solta deixava a página sem
+          cabeçalho nenhum. O texto alternativo da imagem passa a ser o texto do
+          `h1`, que é o que um leitor de ecrã anuncia — e a sobrescrita sai,
+          porque o nome já está dentro do logótipo.
+        */}
+        <h1>
+          <LogoBooking altura={40} prioridade />
         </h1>
-        <p className="mt-3 text-pretty text-(--ink-muted)">Entre para gerir a sua agenda.</p>
+        <p className="mt-4 text-pretty text-(--ink-muted)">Entre para gerir a sua agenda.</p>
       </div>
 
       {params.erro ? (

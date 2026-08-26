@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { LogoBooking } from '@/components/logo-booking';
+
 import { Badge, Button, EmptyState, InteractiveCard, PageHeader } from '@totalmobi/ui';
 
 import { getAuthContext } from '@/lib/auth/context';
@@ -50,8 +52,15 @@ export default async function AppHomePage() {
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16 sm:py-24">
+      {/* O logótipo acima do cabeçalho, e não dentro dele.
+
+          O `eyebrow` do `PageHeader` é uma etiqueta em maiúsculas com
+          espaçamento largo — desenhada para texto curto de contexto, não para
+          uma imagem. Meter lá o logótipo desalinhava-o com o título e obrigava
+          a alargar o tipo do componente para servir um caso só. */}
+      <LogoBooking altura={26} className="mb-6" />
+
       <PageHeader
-        eyebrow="Totalmobi Booking"
         title="As suas empresas"
         description={context.user.email}
         actions={

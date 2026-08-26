@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+
+import { LogoBooking } from '@/components/logo-booking';
 import { useEffect, useState } from 'react';
 
 import { Button, cn } from '@totalmobi/ui';
@@ -48,11 +50,8 @@ export function Cabecalho() {
       )}
     >
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5 sm:px-8">
-        <Link href="/" className="flex shrink-0 items-baseline gap-1.5">
-          <span className="text-(length:--text-lg) font-semibold tracking-(--tracking-tight)">
-            Totalmobi
-          </span>
-          <span className="text-(length:--text-lg) text-(--brand)">Booking</span>
+        <Link href="/" aria-label="Totalmobi Booking — início" className="flex shrink-0">
+          <LogoBooking altura={28} prioridade />
         </Link>
 
         <nav aria-label="Secções" className="ml-auto hidden items-center gap-1 md:flex">

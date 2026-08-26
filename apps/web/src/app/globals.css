@@ -169,3 +169,20 @@
 .marcacao-nova {
   animation: marcacao-entra var(--duration-slow) var(--ease-out-soft) both;
 }
+
+/* O logótipo troca com o tema.
+   Duas imagens no DOM, uma visível de cada vez. A escolha é pelo atributo
+   `data-theme` e não por `prefers-color-scheme`, porque quem escolhe tema claro
+   num sistema escuro tem de ver o logótipo claro — e a media query não sabe
+   dessa escolha. Ver `components/logo-booking.tsx`. */
+.logo-tema-escuro {
+  display: none;
+}
+
+:root[data-theme='dark'] .logo-tema-claro {
+  display: none;
+}
+
+:root[data-theme='dark'] .logo-tema-escuro {
+  display: block;
+}
