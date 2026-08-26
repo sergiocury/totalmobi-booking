@@ -233,7 +233,20 @@ async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb)
   const planCode = meta['plan_code'] ?? null;
 
   if (!planCode) {
-    throw new Error(`subscrição ${subscricao.id} sem plan_code nos metadados`);
+    /*
+     * Uma subscrição sem `plan_code` não é nossa.
+     *
+     * A conta Stripe da Totalmobi é partilhada por mais do que um produto — a
+     * 26/08 havia doze subscrições ativas em modo de teste e só três tinham
+     * estes metadados. O endpoint recebe os eventos da **conta**, não os do
+     * produto, por isso as outras nove passam por aqui quando renovarem.
+     *
+     * Atirar um erro fazia disto um 500, e um 500 faz o Stripe reenviar —
+     * indefinidamente, sobre uma subscrição que nunca vai ser nossa. Um evento
+     * que não nos diz respeito não é uma falha: é ruído, e regista-se como tal.
+     */
+    console.info(`[stripe] subscrição ${subscricao.id} sem plan_code — de outro produto, ignorada`);
+    return;
   }
 
   const tenantId = meta['tenant_id'] ?? (await provisionar(subscricao, db));
