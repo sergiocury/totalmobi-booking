@@ -324,18 +324,10 @@ async function provisionar(
 
   if (!userId || !slugPedido || !displayName || !planCode) return null;
 
-  // Já provisionada? O reenvio de um evento não pode criar uma segunda empresa.
-  const { data: jaExiste } = await db
-    .from('memberships')
-    .select('tenant_id, tenants!inner(slug)')
-    .eq('user_id', userId)
-    .limit(50);
-
-  const daPessoa = (jaExiste ?? []).find(
-    (m) => (m.tenants as unknown as { slug: string } | null)?.slug?.startsWith(slugPedido),
-  );
-
-  if (daPessoa) return daPessoa.tenant_id;
+  // Já provisionada? Nem o reenvio de um evento nem o evento irmão podem criar
+  // uma segunda empresa.
+  const jaLa = await empresaDoUtilizador(db, userId, slugPedido);
+  if (jaLa) return jaLa;
 
   const slug = await slugLivre(db, slugPedido);
 
@@ -353,23 +345,98 @@ async function provisionar(
     .single();
 
   if (erroDaEmpresa || !empresa) {
+    /*
+     * `23505` aqui é quase sempre uma corrida, não um conflito de nomes.
+     *
+     * O Stripe entrega `checkout.session.completed` e
+     * `customer.subscription.created` praticamente ao mesmo tempo, e desde que
+     * o primeiro passou a provisionar, os dois correm esta função em paralelo.
+     * Ambos consultam as pertenças, ambos não encontram nada, ambos chamam
+     * `slugLivre()` — que responde «livre» aos dois — e ambos tentam inserir.
+     * Um ganha; o outro apanha a violação de unicidade.
+     *
+     * Aconteceu na compra de 26/08: a empresa nasceu bem pelo checkout, e o
+     * evento da subscrição ficou marcado `failed` com «duplicate key value
+     * violates unique constraint tenants_slug». Um erro registado sobre uma
+     * coisa que correu bem, que é a pior espécie: manda investigar o que não
+     * está partido.
+     *
+     * Volta-se a perguntar. Se a empresa já lá está — o irmão ganhou a corrida —
+     * usa-se essa. Se não está, então o nome é mesmo de outra pessoa, e aí
+     * `slugLivre()` já a vê e escolhe um sufixo.
+     */
+    if (erroDaEmpresa?.code === '23505') {
+      const doUtilizador = await empresaDoUtilizador(db, userId, slugPedido);
+      if (doUtilizador) return doUtilizador;
+
+      const outroSlug = await slugLivre(db, slugPedido);
+      const { data: segunda, error: erroDaSegunda } = await db
+        .from('tenants')
+        .insert({
+          slug: outroSlug,
+          display_name: displayName,
+          email,
+          plan_code: planCode,
+          status: 'active',
+          created_by: userId,
+        })
+        .select('id')
+        .single();
+
+      if (erroDaSegunda || !segunda) {
+        throw new Error(
+          `não foi possível criar a empresa: ${erroDaSegunda?.message ?? 'sem detalhe'}`,
+        );
+      }
+
+      await darAcesso(db, segunda.id, userId);
+      return segunda.id;
+    }
+
     throw new Error(`não foi possível criar a empresa: ${erroDaEmpresa?.message ?? 'sem detalhe'}`);
   }
 
-  // Quem paga fica dono. `accepted_at` preenchido: não faz sentido convidar
-  // alguém para a empresa que acabou de comprar.
-  const { error: erroDoAcesso } = await db.from('memberships').insert({
-    tenant_id: empresa.id,
+  await darAcesso(db, empresa.id, userId);
+  return empresa.id;
+}
+
+/** A empresa desta pessoa cujo slug saiu deste registo, se já existir. */
+async function empresaDoUtilizador(
+  db: ClienteDb,
+  userId: string,
+  slugPedido: string,
+): Promise<string | null> {
+  const { data } = await db
+    .from('memberships')
+    .select('tenant_id, tenants!inner(slug)')
+    .eq('user_id', userId)
+    .limit(50);
+
+  const encontrada = (data ?? []).find(
+    (m) => (m.tenants as unknown as { slug: string } | null)?.slug?.startsWith(slugPedido),
+  );
+
+  return encontrada?.tenant_id ?? null;
+}
+
+/**
+ * Quem paga fica dono.
+ *
+ * `accepted_at` preenchido: não faz sentido convidar alguém para a empresa que
+ * acabou de comprar. `23505` é o evento irmão a chegar primeiro — o acesso já
+ * existe, e isso é o resultado desejado, não um erro.
+ */
+async function darAcesso(db: ClienteDb, tenantId: string, userId: string): Promise<void> {
+  const { error } = await db.from('memberships').insert({
+    tenant_id: tenantId,
     user_id: userId,
     role: 'tenant_admin',
     accepted_at: new Date().toISOString(),
   });
 
-  if (erroDoAcesso) {
-    throw new Error(`empresa ${empresa.id} criada mas sem acesso: ${erroDoAcesso.message}`);
+  if (error && error.code !== '23505') {
+    throw new Error(`empresa ${tenantId} criada mas sem acesso: ${error.message}`);
   }
-
-  return empresa.id;
 }
 
 /** O slug pedido, ou o primeiro sufixo livre. Quem pagou não pode ficar sem empresa. */

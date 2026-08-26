@@ -161,10 +161,33 @@ export function DemoConversa({ compacto = false }: { compacto?: boolean }) {
     };
   }, [arrancou, indice, terminou]);
 
-  // Rolar a conversa para o fim sem arrastar a página inteira: `block: nearest`
-  // mexe só no contentor que tem overflow.
+  /**
+   * Rolar a conversa para o fim — e só a conversa.
+   *
+   * Isto era `scrollIntoView({ block: 'nearest' })`, com um comentário meu a
+   * garantir que assim «mexe só no contentor que tem overflow». Está errado.
+   * O `block` escolhe o **alinhamento**; não escolhe quem rola. O
+   * `scrollIntoView` percorre todos os antepassados roláveis até ao próprio
+   * documento — e o resultado é o que se via: abre-se a página no topo e, mal a
+   * demonstração arranca, a página salta sozinha para o meio.
+   *
+   * Mexer no `scrollTop` do contentor não tem essa ambiguidade. Não há
+   * antepassados envolvidos: há um elemento e uma propriedade.
+   *
+   * A animação suave fica de fora para quem pediu menos movimento. Uma caixa a
+   * deslizar sozinha, sem ninguém lhe tocar, é precisamente o tipo de movimento
+   * que essa preferência existe para calar.
+   */
   useEffect(() => {
-    fimDaConversa.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const caixa = fimDaConversa.current?.parentElement;
+    if (!caixa) return;
+
+    const menosMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    caixa.scrollTo({
+      top: caixa.scrollHeight,
+      behavior: menosMovimento ? 'auto' : 'smooth',
+    });
   }, [indice, aEscrever]);
 
   const passos = indice >= 0 ? ate(indice) : [];

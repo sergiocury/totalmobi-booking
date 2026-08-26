@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { obterStripe } from '@/lib/stripe/cliente';
 import { resolverPreco, type Periodicidade } from '@/lib/stripe/precos';
+import { getSessionClient } from '@/lib/supabase/server';
 
 /**
  * Registo e início da subscrição.
@@ -153,10 +154,34 @@ export async function iniciarSubscricao(
 /**
  * A conta de quem está a subscrever.
  *
- * Se o email já existe — e existe com frequência, porque o Supabase é partilhado
- * com o CMS — reutiliza-se a conta em vez de rebentar. Mas **não se muda a
- * palavra-passe**: quem soubesse um email conseguiria reescrever a palavra-passe
- * de outra pessoa apenas começando um registo.
+ * NÃO SE REUTILIZA UMA CONTA EM SILÊNCIO
+ *
+ * A versão anterior fazia o contrário: se o email já existisse, aproveitava a
+ * conta e seguia em frente sem mudar a palavra-passe. A intenção de segurança
+ * estava certa — quem soubesse um email alheio não pode reescrever-lhe a
+ * palavra-passe começando um registo. Mas faltava a outra metade: **dizer à
+ * pessoa que a palavra-passe que acabou de escrever não vale nada**.
+ *
+ * O que aconteceu a sério, a 26/08: registo com `sergio@totalmobi.com.br`,
+ * palavra-passe nova escrita no formulário, pagamento feito, empresa criada — e
+ * depois impossível entrar, porque a palavra-passe verdadeira era a de uma
+ * conta criada em março, no CMS. O formulário pediu uma coisa que ignorou, e a
+ * cobrança seguiu na mesma.
+ *
+ * Este risco é maior aqui do que na maioria dos produtos: o pool de
+ * `auth.users` é **partilhado com o Totalmobi CMS** (ver ARCHITECTURE.md §4).
+ * Um email «novo» para o Booking pode ter conta desde há meses.
+ *
+ * Agora há dois caminhos, e nenhum deles cobra antes de estar resolvido:
+ *
+ * 1. **Email sem conta** — cria-se, com a palavra-passe escrita. Caso normal.
+ * 2. **Email com conta** — se a sessão atual já for dessa pessoa, segue-se sem
+ *    tocar na palavra-passe (é o dono a comprar uma segunda empresa, coisa
+ *    legítima). Se não for, pára-se e manda-se entrar primeiro.
+ *
+ * O caso 2 revela que aquele email tem conta. É um preço real e assumido: a
+ * alternativa é aceitar dinheiro de alguém que vai ficar de fora da própria
+ * conta, e isso é pior do que a enumeração de emails num registo pago.
  */
 async function garantirUtilizador(
   db: ReturnType<typeof createServiceClient>,
@@ -173,8 +198,6 @@ async function garantirUtilizador(
 
   if (!error && criado.user) return { id: criado.user.id };
 
-  // Já existe. Procura-se o id para se poder continuar — mas quem não souber a
-  // palavra-passe antiga continua sem entrar, e é assim que tem de ser.
   const jaExiste =
     error?.status === 422 || (error?.message ?? '').toLowerCase().includes('already');
 
@@ -183,12 +206,17 @@ async function garantirUtilizador(
     return { erro: 'Não foi possível criar a conta.' };
   }
 
-  const { data: lista } = await db.auth.admin.listUsers({ page: 1, perPage: 200 });
-  const encontrado = lista?.users.find((u) => u.email?.toLowerCase() === email);
+  // É o próprio, já com sessão aberta? Então é o dono a comprar outra empresa.
+  const sessao = await getSessionClient();
+  const { data: quemEsta } = await sessao.auth.getUser();
 
-  if (!encontrado) {
-    return { erro: 'Já existe uma conta com este email. Entre e depois subscreva.' };
+  if (quemEsta.user?.email?.toLowerCase() === email) {
+    return { id: quemEsta.user.id };
   }
 
-  return { id: encontrado.id };
+  return {
+    erro:
+      'Já existe uma conta com este email. Inicie sessão primeiro e volte a esta página — ' +
+      'se não se lembrar da palavra-passe, pode entrar com um link enviado por email.',
+  };
 }

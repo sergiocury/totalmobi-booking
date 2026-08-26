@@ -42,12 +42,31 @@ export default async function ObrigadoPage({
   if ('erro' in cliente) return <Aviso titulo="Não foi possível confirmar o pagamento" />;
 
   let pago = false;
-  let email: string | null = null;
+  let idDaSubscricao: string | null = null;
 
   try {
+    /*
+     * Expande-se a subscrição para chegar aos metadados do registo.
+     *
+     * Isto procurava a empresa **pelo email do pagador**, com `maybeSingle()`.
+     * Funciona enquanto cada pessoa tiver uma empresa só, e deixa de funcionar
+     * no dia em que alguém compra a segunda: `maybeSingle()` trata duas linhas
+     * como erro e devolve nada.
+     *
+     * Foi o que aconteceu a 26/08. A empresa tinha sido criada em condições, o
+     * webhook tinha corrido bem, e esta página dizia «estamos a preparar a sua
+     * conta» indefinidamente — porque o mesmo email já tinha outra empresa.
+     *
+     * Procura-se pelo **identificador da subscrição**, que o webhook grava em
+     * `tenant_subscriptions`. É o elo exato entre este pagamento e aquela
+     * empresa. O slug dos metadados era o candidato óbvio e não serve: quando o
+     * nome pedido já está ocupado, `slugLivre()` acrescenta um sufixo, e o slug
+     * gravado deixa de ser o slug pedido.
+     */
     const s = await cliente.ok.checkout.sessions.retrieve(sessao);
+
     pago = s.payment_status === 'paid' || s.status === 'complete';
-    email = s.customer_details?.email ?? null;
+    idDaSubscricao = typeof s.subscription === 'string' ? s.subscription : (s.subscription?.id ?? null);
   } catch {
     return <Aviso titulo="Não encontrámos esta sessão" />;
   }
@@ -63,9 +82,15 @@ export default async function ObrigadoPage({
 
   // O webhook já criou a empresa? É ele quem a cria, não esta página.
   const db = createServiceClient();
-  const { data: empresa } = email
-    ? await db.from('tenants').select('slug, display_name').eq('email', email).maybeSingle()
+  const { data: ligacao } = idDaSubscricao
+    ? await db
+        .from('tenant_subscriptions')
+        .select('tenants!inner(slug, display_name)')
+        .eq('stripe_subscription_id', idDaSubscricao)
+        .maybeSingle()
     : { data: null };
+
+  const empresa = (ligacao?.tenants as unknown as { slug: string; display_name: string } | null) ?? null;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-6 py-16 text-center">
