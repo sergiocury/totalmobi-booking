@@ -5,9 +5,11 @@ import {
   checkContrast,
   contrastLevel,
   contrastRatioHex,
+  mixColor,
   parseHex,
   readableTextOn,
   relativeLuminance,
+  tintColor,
   toHex,
 } from './contrast';
 
@@ -209,5 +211,56 @@ describe('readableTextOn', () => {
         contrastRatioHex(outra, cor)!,
       );
     }
+  });
+});
+
+describe('mixColor', () => {
+  it('nos extremos devolve cada uma das cores', () => {
+    expect(mixColor('#0B5FFF', '#FFFFFF', 0)).toBe('#0B5FFF');
+    expect(mixColor('#0B5FFF', '#FFFFFF', 1)).toBe('#FFFFFF');
+  });
+
+  /**
+   * O defeito que motivou esta função.
+   *
+   * `tintColor(primary, 4.2)` escala a luminância e mantém a saturação: para o
+   * azul por omissão devolvia `#1FB8FF`, um ciano fluorescente. Um tom suave
+   * tem de **perder** saturação, e é isso que a mistura com o branco faz.
+   */
+  it('um tom suave é menos saturado do que a cor de partida', () => {
+    const saturacao = (hex: string) => {
+      const c = parseHex(hex)!;
+      const max = Math.max(c.r, c.g, c.b);
+      const min = Math.min(c.r, c.g, c.b);
+      return max === 0 ? 0 : (max - min) / max;
+    };
+
+    const suave = mixColor('#0B5FFF', '#FFFFFF', 0.9)!;
+
+    expect(saturacao(suave)).toBeLessThan(saturacao('#0B5FFF'));
+    expect(saturacao(suave)).toBeLessThan(saturacao(tintColor('#0B5FFF', 4.2)!));
+  });
+
+  it('um tom suave sobre branco continua claro o suficiente para texto escuro', () => {
+    const suave = mixColor('#0B5FFF', '#FFFFFF', 0.9)!;
+
+    expect(contrastRatioHex('#101828', suave)!).toBeGreaterThan(4.5);
+  });
+
+  it('serve qualquer cor de marca, não só a nossa', () => {
+    for (const marca of ['#0E7C86', '#B0446A', '#7C3AED', '#B45309']) {
+      const suave = mixColor(marca, '#FFFFFF', 0.9)!;
+      expect(contrastRatioHex('#101828', suave)!, marca).toBeGreaterThan(4.5);
+    }
+  });
+
+  it('pesos fora do intervalo não estouram', () => {
+    expect(mixColor('#0B5FFF', '#FFFFFF', -3)).toBe('#0B5FFF');
+    expect(mixColor('#0B5FFF', '#FFFFFF', 99)).toBe('#FFFFFF');
+  });
+
+  it('devolve null se alguma cor não for válida', () => {
+    expect(mixColor('azul', '#FFFFFF', 0.5)).toBeNull();
+    expect(mixColor('#0B5FFF', 'branco', 0.5)).toBeNull();
   });
 });

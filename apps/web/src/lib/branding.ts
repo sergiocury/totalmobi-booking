@@ -1,5 +1,6 @@
 import {
   adjustForContrast,
+  mixColor,
   readableTextOn,
   tintColor,
   type AdjustedColor,
@@ -81,7 +82,20 @@ export function resolveBranding(
 
   const brandHover =
     tintColor(branding.primaryColor, scheme === 'dark' ? 1.25 : 0.78) ?? brand;
-  const brandSoft = tintColor(branding.primaryColor, scheme === 'dark' ? 0.22 : 4.2) ?? surface;
+  /*
+   * O tom suave mistura-se com o fundo; não se escala a luminância.
+   *
+   * Isto era `tintColor(primary, 4.2)`, que multiplica a luminância e mantém a
+   * saturação. Para o azul por omissão devolvia `#1FB8FF` — um ciano
+   * fluorescente, mais agressivo do que a cor de partida. Era ele que pintava o
+   * cartão de serviço selecionado na página pública, onde a intenção era «um
+   * fundo discreto com a cor da clínica».
+   *
+   * Misturar com o fundo dá `#E7EFFF`, que é o que a intenção queria dizer:
+   * aproximar-se do branco tira saturação, e é isso que faz um tom suave.
+   */
+  const brandSoft =
+    mixColor(branding.primaryColor, surface, scheme === 'dark' ? 0.82 : 0.9) ?? surface;
 
   const declarations = [
     `--brand:${brand}`,

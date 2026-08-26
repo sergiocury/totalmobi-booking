@@ -292,3 +292,43 @@ export function readableTextOn(background: string): '#FFFFFF' | '#000000' | null
 
   return white >= black ? '#FFFFFF' : '#000000';
 }
+
+/**
+ * Mistura duas cores, como quem junta tinta.
+ *
+ * `peso` é a fração da segunda cor: 0 devolve `a`, 1 devolve `b`, 0.9 devolve
+ * quase `b`.
+ *
+ * PORQUE É QUE ISTO NÃO É `tintColor`
+ *
+ * `tintColor` escala a **luminância** e mantém a saturação. Para clarear um
+ * cinzento serve; para fazer um tom suave a partir de uma cor saturada, não —
+ * `tintColor('#0B5FFF', 4.2)` devolve `#1FB8FF`, que não é um azul suave: é um
+ * ciano berrante, tão saturado como o original e mais agressivo do que ele.
+ *
+ * Era o que pintava o cartão de serviço selecionado na página pública. A
+ * intenção do código era «um fundo discreto com a cor da clínica»; o que se via
+ * era um retângulo de cor fluorescente.
+ *
+ * Misturar com o fundo faz o que a intenção dizia: aproxima do branco, e ao
+ * aproximar-se do branco perde saturação — que é exatamente o que distingue um
+ * tom suave de uma cor clara.
+ *
+ * A mistura é feita em sRGB, sem correção de gama. Para um tom pálido é
+ * indistinguível de uma mistura linear correta, e mantém esta função sem
+ * dependências.
+ */
+export function mixColor(a: string, b: string, peso: number): string | null {
+  const corA = parseHex(a);
+  const corB = parseHex(b);
+  if (!corA || !corB) return null;
+
+  const t = Math.min(1, Math.max(0, peso));
+  const entre = (x: number, y: number) => Math.round(x + (y - x) * t);
+
+  return toHex({
+    r: entre(corA.r, corB.r),
+    g: entre(corA.g, corB.g),
+    b: entre(corA.b, corB.b),
+  });
+}

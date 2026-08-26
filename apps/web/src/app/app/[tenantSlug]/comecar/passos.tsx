@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 
 import { Button, Field } from '@totalmobi/ui';
@@ -31,6 +32,56 @@ import {
 
 const erroDeEstilo =
   'rounded-(--radius-md) border border-(--danger) bg-(--danger-soft) px-4 py-3 text-(length:--text-sm)';
+
+/**
+ * O que já foi criado, mais a porta de saída.
+ *
+ * Os passos de serviços e de equipa aceitam vários, e a versão anterior não o
+ * dizia: criava-se um e a página saltava para o passo seguinte no mesmo
+ * instante, como se um fosse o máximo. Quem ia escrever o segundo via o
+ * formulário desaparecer.
+ *
+ * Agora a lista do que já existe fica à vista e é preciso dizer «Continuar»
+ * para avançar. O botão só aparece quando há pelo menos um — antes disso não há
+ * para onde ir.
+ */
+function JaCriados({
+  itens,
+  rotulo,
+  tenantSlug,
+}: {
+  itens: string[];
+  rotulo: string;
+  tenantSlug: string;
+}) {
+  if (itens.length === 0) return null;
+
+  return (
+    <div className="mt-6 border-t border-(--line) pt-5">
+      <p className="text-(length:--text-sm) font-medium text-(--ink-muted)">
+        {itens.length} {itens.length === 1 ? rotulo : `${rotulo}s`} — pode acrescentar mais
+      </p>
+
+      <ul className="mt-2.5 flex flex-wrap gap-2">
+        {itens.map((nome) => (
+          <li
+            key={nome}
+            className="rounded-(--radius-full) bg-(--surface-sunken) px-3 py-1.5 text-(length:--text-sm)"
+          >
+            {nome}
+          </li>
+        ))}
+      </ul>
+
+      <Link
+        href={`/app/${tenantSlug}/comecar`}
+        className="mt-5 inline-flex min-h-11 items-center rounded-(--radius-full) bg-(--brand) px-5 font-medium text-(--brand-ink)"
+      >
+        Continuar →
+      </Link>
+    </div>
+  );
+}
 
 function Erro({ estado }: { estado: EstadoDoPasso }) {
   if (!estado.error) return null;
@@ -114,7 +165,15 @@ export function PassoUnidade({ tenantId, tenantSlug }: { tenantId: string; tenan
   );
 }
 
-export function PassoServico({ tenantId, tenantSlug }: { tenantId: string; tenantSlug: string }) {
+export function PassoServico({
+  tenantId,
+  tenantSlug,
+  jaCriados,
+}: {
+  tenantId: string;
+  tenantSlug: string;
+  jaCriados: string[];
+}) {
   const [estado, acao, aEnviar] = useActionState(
     createService.bind(null, tenantId, tenantSlug),
     {} as EstadoDoPasso,
@@ -135,7 +194,7 @@ export function PassoServico({ tenantId, tenantSlug }: { tenantId: string; tenan
         name="name"
         required
         placeholder="Consulta de avaliação"
-        hint="Comece por um. Os outros acrescenta depois, na página de serviços."
+        hint="Acrescente quantos quiser — fica nesta página até dizer que chega."
       />
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -164,13 +223,23 @@ export function PassoServico({ tenantId, tenantSlug }: { tenantId: string; tenan
       <Erro estado={estado} />
 
       <Button type="submit" size="lg" loading={aEnviar}>
-        Criar serviço
+        {jaCriados.length === 0 ? 'Criar serviço' : 'Acrescentar mais um'}
       </Button>
+
+      <JaCriados itens={jaCriados} rotulo="serviço" tenantSlug={tenantSlug} />
     </form>
   );
 }
 
-export function PassoEquipa({ tenantId, tenantSlug }: { tenantId: string; tenantSlug: string }) {
+export function PassoEquipa({
+  tenantId,
+  tenantSlug,
+  jaCriados,
+}: {
+  tenantId: string;
+  tenantSlug: string;
+  jaCriados: string[];
+}) {
   const [estado, acao, aEnviar] = useActionState(
     createStaff.bind(null, tenantId, tenantSlug),
     {} as EstadoDoPasso,
@@ -188,15 +257,17 @@ export function PassoEquipa({ tenantId, tenantSlug }: { tenantId: string; tenant
         name="fullName"
         required
         placeholder="Ana Martins"
-        hint="Pode ser o seu. A equipa toda acrescenta-se depois."
+        hint="Pode ser o seu. Acrescente a equipa toda aqui, uma pessoa de cada vez."
       />
       <Field label="Função (opcional)" name="jobTitle" placeholder="Médica dentista" />
 
       <Erro estado={estado} />
 
       <Button type="submit" size="lg" loading={aEnviar}>
-        Adicionar à equipa
+        {jaCriados.length === 0 ? 'Adicionar à equipa' : 'Acrescentar mais uma pessoa'}
       </Button>
+
+      <JaCriados itens={jaCriados} rotulo="pessoa" tenantSlug={tenantSlug} />
     </form>
   );
 }

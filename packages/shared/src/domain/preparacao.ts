@@ -22,6 +22,19 @@
  *
  * O motor de disponibilidade precisa dos cinco. Faltando um, não há hora
  * possível — e é melhor dizê-lo do que deixar alguém procurá-la.
+ *
+ * O PASSO DOS HORÁRIOS SÃO DUAS TABELAS, NÃO UMA
+ *
+ * A primeira versão desta função contava só `staff_working_hours` e dava o
+ * passo por feito. O motor exige também `location_business_hours` — se a
+ * unidade não tem horário de abertura, o dia fecha com `no_location_hours` por
+ * mais que a equipa tenha horário.
+ *
+ * Aconteceu a sério: a 26/08 uma empresa saiu do assistente com cinco linhas de
+ * horário de equipa, zero de unidade, o painel a dizer «tudo pronto» e a página
+ * pública a responder «Fechado neste dia» a todas as datas. Foi exatamente a
+ * divergência que esta função existe para impedir — só que desta vez estava
+ * dentro dela.
  */
 
 /** O que se conta na base para saber se há caminho até uma hora livre. */
@@ -34,8 +47,16 @@ export interface SinaisDePreparacao {
   profissionais: number;
   /** Ligações ativas entre profissional e serviço. */
   ligacoes: number;
-  /** Linhas de horário de trabalho. */
+  /** Linhas de horário de trabalho da equipa. */
   horarios: number;
+  /**
+   * Linhas de horário de abertura da unidade.
+   *
+   * Separado dos horários da equipa de propósito, porque o motor exige os dois
+   * e são coisas diferentes: a unidade abre das 8h às 20h, a Dra. Ana trabalha
+   * das 9h às 13h. A disponibilidade é a interseção.
+   */
+  horariosDaUnidade: number;
 }
 
 export type ChaveDePasso = 'unidades' | 'servicos' | 'equipa' | 'ligacoes' | 'horarios';
@@ -99,9 +120,12 @@ export function preparacao(sinais: SinaisDePreparacao): Preparacao {
     {
       chave: 'horarios',
       titulo: 'Definir horários',
-      porque: 'As horas oferecidas saem daqui. Sem horários, a agenda fica vazia.',
+      porque:
+        'A que horas abre a unidade e quem trabalha quando. As horas oferecidas são a ' +
+        'interseção das duas coisas — falta uma, não há hora nenhuma.',
       caminho: 'horarios',
-      feito: sinais.horarios > 0,
+      // Os dois, e não um ou outro. Ver a nota em `horariosDaUnidade`.
+      feito: sinais.horarios > 0 && sinais.horariosDaUnidade > 0,
     },
   ];
 

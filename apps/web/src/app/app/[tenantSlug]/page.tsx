@@ -37,7 +37,7 @@ export default async function TenantOverviewPage({
 
   if (!context) notFound();
 
-  const [servicos, equipa, unidades, ligacoes, horarios] = await Promise.all([
+  const [servicos, equipa, unidades, ligacoes, horarios, horariosDaUnidade] = await Promise.all([
     context.client
       .from('services')
       .select('id', { count: 'exact', head: true })
@@ -66,6 +66,10 @@ export default async function TenantOverviewPage({
       .from('staff_working_hours')
       .select('id, staff!inner(tenant_id)', { count: 'exact', head: true })
       .eq('staff.tenant_id', context.tenantId),
+    context.client
+      .from('location_business_hours')
+      .select('id, locations!inner(tenant_id)', { count: 'exact', head: true })
+      .eq('locations.tenant_id', context.tenantId),
   ]);
 
   const estado = preparacao({
@@ -74,6 +78,7 @@ export default async function TenantOverviewPage({
     profissionais: equipa.count ?? 0,
     ligacoes: ligacoes.count ?? 0,
     horarios: horarios.count ?? 0,
+    horariosDaUnidade: horariosDaUnidade.count ?? 0,
   });
 
   const podeGerir = canManage(context);

@@ -245,7 +245,7 @@ async function guardarSubscricao(subscricao: Stripe.Subscription, db: ClienteDb)
      * indefinidamente, sobre uma subscrição que nunca vai ser nossa. Um evento
      * que não nos diz respeito não é uma falha: é ruído, e regista-se como tal.
      */
-    console.info(`[stripe] subscrição ${subscricao.id} sem plan_code — de outro produto, ignorada`);
+    console.warn(`[stripe] subscrição ${subscricao.id} sem plan_code — de outro produto, ignorada`);
     return;
   }
 

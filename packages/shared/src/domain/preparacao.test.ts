@@ -8,6 +8,7 @@ const nada: SinaisDePreparacao = {
   profissionais: 0,
   ligacoes: 0,
   horarios: 0,
+  horariosDaUnidade: 0,
 };
 
 const tudo: SinaisDePreparacao = {
@@ -16,6 +17,7 @@ const tudo: SinaisDePreparacao = {
   profissionais: 2,
   ligacoes: 4,
   horarios: 10,
+  horariosDaUnidade: 5,
 };
 
 describe('preparacao', () => {
@@ -57,8 +59,23 @@ describe('preparacao', () => {
     expect(r.emFalta.map((p) => p.chave)).toEqual(['ligacoes']);
   });
 
-  it('tudo menos horários não está pronta', () => {
+  it('tudo menos horários da equipa não está pronta', () => {
     const r = preparacao({ ...tudo, horarios: 0 });
+
+    expect(r.pronta).toBe(false);
+    expect(r.emFalta.map((p) => p.chave)).toEqual(['horarios']);
+  });
+
+  /**
+   * O caso de 26/08.
+   *
+   * O assistente gravava só os horários da equipa. Isto dava o passo por feito,
+   * o painel dizia «tudo pronto», e a página pública respondia «Fechado neste
+   * dia» a todas as datas — porque o motor fecha com `no_location_hours` se a
+   * unidade não tiver horário de abertura.
+   */
+  it('horários de equipa sem horário de abertura da unidade não chegam', () => {
+    const r = preparacao({ ...tudo, horariosDaUnidade: 0 });
 
     expect(r.pronta).toBe(false);
     expect(r.emFalta.map((p) => p.chave)).toEqual(['horarios']);

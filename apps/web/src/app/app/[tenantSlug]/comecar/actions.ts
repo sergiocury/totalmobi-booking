@@ -116,15 +116,26 @@ export async function criarUnidade(
 }
 
 /**
- * O horário de abertura, em cima de toda a equipa de uma vez.
+ * O horário — o da unidade e o da equipa, que são duas tabelas.
+ *
+ * SÃO MESMO DUAS, E ESQUECER UMA NÃO DÁ ERRO NENHUM
+ *
+ * `location_business_hours` diz quando a porta está aberta;
+ * `staff_working_hours` diz quem lá está. O motor cruza as duas, e se faltar
+ * qualquer uma o dia fecha — a primeira com `no_location_hours`, a segunda com
+ * `no_staff_hours`.
+ *
+ * A primeira versão desta ação gravava só a da equipa. A empresa saía do
+ * assistente com cinco linhas de horário, o painel dava tudo por pronto, e a
+ * página pública respondia «Fechado neste dia» a todas as datas. Nada falhava
+ * em lado nenhum: estava tudo a funcionar exatamente como escrito.
+ *
+ * TODA A EQUIPA DE UMA VEZ
  *
  * O assistente não pergunta o horário pessoa a pessoa. Numa clínica que está a
- * abrir a conta, toda a gente faz o mesmo horário — e quem precisar de
- * diferenciar tem a página de horários, que é feita para isso e faz muito mais
- * do que isto.
- *
- * Pedir aqui o horário de cinquenta pessoas, uma a uma, era garantir que
- * ninguém acabava a configuração.
+ * abrir a conta toda a gente faz o mesmo horário, e quem precisar de
+ * diferenciar tem a página de horários, feita para isso. Pedir aqui o horário
+ * de cinquenta pessoas, uma a uma, era garantir que ninguém acabava.
  */
 export async function horarioParaEquipaToda(
   tenantId: string,
@@ -195,6 +206,27 @@ export async function horarioParaEquipaToda(
 
   const { error } = await client.from('staff_working_hours').insert(linhas);
   if (error) return { error: `Não foi possível guardar: ${error.message}` };
+
+  // A unidade. Mesma janela, mesma lógica de apagar e reinserir.
+  const { error: erroApagarUnidade } = await client
+    .from('location_business_hours')
+    .delete()
+    .eq('location_id', unidade.data);
+
+  if (erroApagarUnidade) {
+    return { error: `Não foi possível guardar: ${erroApagarUnidade.message}` };
+  }
+
+  const { error: erroDaUnidade } = await client.from('location_business_hours').insert(
+    dias.map((weekday) => ({
+      location_id: unidade.data,
+      weekday,
+      opens_at: abre,
+      closes_at: fecha,
+    })),
+  );
+
+  if (erroDaUnidade) return { error: `Não foi possível guardar: ${erroDaUnidade.message}` };
 
   await writeAuditLog({
     tenantId,

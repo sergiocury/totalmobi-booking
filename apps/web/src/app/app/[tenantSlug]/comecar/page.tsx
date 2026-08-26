@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { preparacao } from '@totalmobi/shared';
+import { preparacao, type ChaveDePasso } from '@totalmobi/shared';
 import { Card } from '@totalmobi/ui';
 
 import { canManage, loadTenantPage } from '@/lib/tenant-context';
@@ -10,6 +10,9 @@ import { PassoEquipa, PassoHorarios, PassoLigacoes, PassoServico, PassoUnidade }
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Começar' };
+
+/** Passos onde faz sentido acrescentar mais do que um antes de avançar. */
+const REPETIVEIS: ChaveDePasso[] = ['servicos', 'equipa'];
 
 /**
  * O assistente de primeira configuração.
@@ -36,16 +39,19 @@ export const metadata = { title: 'Começar' };
  */
 export default async function ComecarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenantSlug: string }>;
+  searchParams: Promise<{ passo?: string }>;
 }) {
   const { tenantSlug } = await params;
+  const { passo: passoPedido } = await searchParams;
   const context = await loadTenantPage(tenantSlug);
 
   if (!context) notFound();
   if (!canManage(context)) redirect(`/app/${tenantSlug}`);
 
-  const [unidades, servicos, equipa, ligacoes, horarios] = await Promise.all([
+  const [unidades, servicos, equipa, ligacoes, horarios, horariosDaUnidade] = await Promise.all([
     context.client
       .from('locations')
       .select('id, name')
@@ -73,6 +79,10 @@ export default async function ComecarPage({
       .from('staff_working_hours')
       .select('id, staff!inner(tenant_id)', { count: 'exact', head: true })
       .eq('staff.tenant_id', context.tenantId),
+    context.client
+      .from('location_business_hours')
+      .select('id, locations!inner(tenant_id)', { count: 'exact', head: true })
+      .eq('locations.tenant_id', context.tenantId),
   ]);
 
   const listaDeUnidades = unidades.data ?? [];
@@ -85,15 +95,44 @@ export default async function ComecarPage({
     profissionais: listaDaEquipa.length,
     ligacoes: ligacoes.count ?? 0,
     horarios: horarios.count ?? 0,
+    horariosDaUnidade: horariosDaUnidade.count ?? 0,
   });
 
   if (estado.pronta) redirect(`/app/${tenantSlug}`);
 
-  // `estado.pronta` foi tratado com um redirect acima, por isso há sempre um
-  // primeiro passo em falta. O encadeamento opcional evita um `!` e deixa os
-  // `null` do JSX tratarem do caso que não acontece.
-  const passo = estado.emFalta[0];
-  const numero = estado.feitos + 1;
+  /*
+   * O passo fica no endereço, e não só na base.
+   *
+   * Sem isto, criar **um** serviço marcava o passo como feito e a página saltava
+   * para a equipa no mesmo instante. Quem estava a escrever o segundo serviço
+   * via o formulário desaparecer debaixo dos dedos — e ficava com a ideia de
+   * que só se pode ter um serviço, que é o contrário do que o produto faz.
+   *
+   * Os passos de serviços e de equipa são repetíveis: acrescenta-se um, e depois
+   * outro, até dizer que chega. Por isso a página fixa-os no endereço e só
+   * avança quando alguém carrega em «Continuar».
+   *
+   * A unidade e os horários não precisam disto — são um por empresa, e ficam
+   * feitos à primeira.
+   */
+  const primeiroEmFalta = estado.emFalta[0];
+
+  if (!passoPedido && primeiroEmFalta && REPETIVEIS.includes(primeiroEmFalta.chave)) {
+    redirect(`/app/${tenantSlug}/comecar?passo=${primeiroEmFalta.chave}`);
+  }
+
+  /*
+   * Um passo pedido só vale se os anteriores estiverem feitos. Sem esta guarda,
+   * `?passo=horarios` numa empresa vazia mostrava um formulário que não tinha
+   * unidade nem equipa para gravar.
+   */
+  const pedido = estado.passos.find((x) => x.chave === passoPedido);
+  const anterioresFeitos =
+    pedido !== undefined &&
+    estado.passos.slice(0, estado.passos.indexOf(pedido)).every((x) => x.feito);
+
+  const passo = anterioresFeitos ? pedido : primeiroEmFalta;
+  const numero = passo ? estado.passos.indexOf(passo) + 1 : estado.feitos + 1;
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-10 sm:py-14">
@@ -134,11 +173,19 @@ export default async function ComecarPage({
         ) : null}
 
         {passo?.chave === 'servicos' ? (
-          <PassoServico tenantId={context.tenantId} tenantSlug={tenantSlug} />
+          <PassoServico
+            tenantId={context.tenantId}
+            tenantSlug={tenantSlug}
+            jaCriados={listaDeServicos.map((x) => x.name)}
+          />
         ) : null}
 
         {passo?.chave === 'equipa' ? (
-          <PassoEquipa tenantId={context.tenantId} tenantSlug={tenantSlug} />
+          <PassoEquipa
+            tenantId={context.tenantId}
+            tenantSlug={tenantSlug}
+            jaCriados={listaDaEquipa.map((x) => x.full_name)}
+          />
         ) : null}
 
         {passo?.chave === 'ligacoes' ? (
