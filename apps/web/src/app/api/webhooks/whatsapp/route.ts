@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { createServiceClient } from '@totalmobi/database/server';
+
+import { responderNoWhatsApp } from '@/lib/whatsapp/conversa';
 import {
   assinaturaValida,
   idDoEvento,
@@ -148,10 +150,40 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ duplicado: true });
   }
 
+  /*
+   * Responder.
+   *
+   * Até aqui o webhook registava o evento e ficava-se por isso — o produto
+   * vendia marcação por WhatsApp e ninguém conseguia marcar por WhatsApp.
+   *
+   * A resposta é depois do registo, e nunca antes: se o envio falhar, o evento
+   * já está guardado e sabe-se que chegou. Ao contrário, uma falha a meio
+   * deixaria a Meta a reenviar uma mensagem que já tinha sido respondida.
+   *
+   * Os erros de um turno não sobem: uma pessoa que não recebeu resposta é um
+   * problema, mas devolver 500 à Meta faz com que ela reenvie a mesma mensagem
+   * e o cliente receba a resposta em duplicado. Ficam no resultado, para o
+   * diagnóstico, e a Meta leva 200.
+   */
+  const turnos: { de: string; respondeu: boolean; motivo?: string | undefined }[] = [];
+
+  if (tenantId) {
+    for (const mensagem of evento.mensagens) {
+      try {
+        const r = await responderNoWhatsApp(client, tenantId as string, mensagem);
+        turnos.push({ de: mensagem.waId, respondeu: r.respondeu, motivo: r.motivo });
+      } catch (causa) {
+        console.error('[whatsapp] falha a responder', causa);
+        turnos.push({ de: mensagem.waId, respondeu: false, motivo: 'erro interno' });
+      }
+    }
+  }
+
   return Response.json({
     registado: true,
     mensagens: evento.mensagens.length,
     estados: evento.estados.length,
     tenantReconhecido: Boolean(tenantId),
+    turnos,
   });
 }
