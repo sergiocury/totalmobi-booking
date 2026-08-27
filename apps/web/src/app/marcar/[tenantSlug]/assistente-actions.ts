@@ -193,15 +193,16 @@ export async function falarComAssistente(entrada: {
     opcoes = undefined;
   }
 
-  await client
-    .from('conversations')
-    .update({
-      current_state: turno.estado,
-      context: contexto as never,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', conversa.id);
+  // Grava o estado **e** o par de mensagens. Sem elas a caixa de entrada do
+  // painel mostraria metade da conversa.
+  await client.rpc('conversa_web_guardar' as never, {
+    p_id: conversa.id,
+    p_tenant: tenantId,
+    p_estado: turno.estado,
+    p_contexto: contexto,
+    p_pergunta: mensagem,
+    p_resposta: texto,
+  } as never);
 
   return { conversaId: conversa.id, texto, opcoes, escolha };
 }
@@ -213,47 +214,33 @@ interface ConversaAberta {
 }
 
 /**
- * A conversa, criada à primeira mensagem.
+ * A conversa, aberta ou retomada por função.
  *
- * O identificador é o da linha — um UUID que o cliente guarda e devolve. Não é
- * um segredo forte, e não precisa de ser: quem o tiver continua uma conversa
- * sobre horários públicos, e a marcação em si passa pelo formulário.
+ * O anónimo não tem — nem deve ter — acesso à tabela `conversations`. Sem
+ * sessão, uma política de RLS não sabe de quem é a linha, e a única que
+ * funcionaria (`channel = 'web_chat'`) deixaria qualquer pessoa ler as
+ * conversas de todas as empresas.
+ *
+ * Por isso passa por `conversa_web_abrir`, `SECURITY DEFINER`, que é o mesmo
+ * padrão do `availability_dataset` e do `create_booking_atomic`. Ver a
+ * migration `0039`.
  */
 async function obterConversa(
   client: ReturnType<typeof createAnonClient>,
   tenantId: string,
   id: string | undefined,
 ): Promise<ConversaAberta | null> {
-  if (id) {
-    const { data } = await client
-      .from('conversations')
-      .select('id, current_state, context')
-      .eq('id', id)
-      .eq('tenant_id', tenantId)
-      .eq('channel', 'web_chat')
-      .maybeSingle();
+  const { data } = await client.rpc('conversa_web_abrir' as never, {
+    p_tenant: tenantId,
+    ...(id ? { p_id: id } : {}),
+  } as never);
 
-    if (data) {
-      return {
-        id: data.id,
-        estado: data.current_state as Estado,
-        contexto: (data.context ?? {}) as ContextoDaConversa,
-      };
-    }
-  }
+  const linha = (data as { id: string; current_state: string; context: unknown }[] | null)?.[0];
+  if (!linha) return null;
 
-  const { data } = await client
-    .from('conversations')
-    .insert({
-      tenant_id: tenantId,
-      channel: 'web_chat',
-      external_id: crypto.randomUUID(),
-      current_state: 'NEW',
-      context: {},
-      last_inbound_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single();
-
-  return data ? { id: data.id, estado: 'NEW', contexto: {} } : null;
+  return {
+    id: linha.id,
+    estado: linha.current_state as Estado,
+    contexto: (linha.context ?? {}) as ContextoDaConversa,
+  };
 }
