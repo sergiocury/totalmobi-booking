@@ -718,6 +718,27 @@ da fila de notificações, taxa de falha de entrega WhatsApp por tenant.
 | ADR-10 | Cliente final sem conta | Auth para todos | Fricção mata conversão; links tokenizados chegam |
 | ADR-13 | **`preparacao()` em `shared`** decide se uma empresa aceita marcações | Cada página com o seu critério | O painel e a página pública têm de concordar; divergirem é o pior erro possível |
 
+### A cor da marca e o contraste
+
+O turquesa da Totalmobi Booking é **`#0098AB`** (fixado em 2026-08-27, folha de
+marca em `logo_booking.png` / `marca_booking.png`).
+
+Tem **3,45:1** contra branco, abaixo dos 4,5:1 que a WCAG pede para texto
+normal. Não é um descuido — é o que uma cor de marca costuma ser, e é
+precisamente por isso que `resolveBranding()` separa três variáveis a partir de
+uma só:
+
+| Variável | O que é | Para quê |
+|---|---|---|
+| `--brand-solid` | a cor tal como é | preenchimentos, botões |
+| `--brand` | escurecida até 4,5:1 | texto e ícones sobre o fundo |
+| `--brand-ink` | calculada, nunca assumida | o texto **dentro** do preenchimento |
+
+O token da landing em `tokens.css` é `#0e7a84` — este mesmo turquesa, já
+escurecido. Não foi escolhido a olho: saiu da mesma `adjustForContrast()` que
+corrige a cor de um cliente, depois de uma auditoria ter apanhado o design
+system a violar a regra que impõe aos clientes.
+
 ### ADR-13 — uma definição de «pronta para marcar»
 
 A porta da página pública era `serviços > 0 && unidade`. Passava-a uma clínica
