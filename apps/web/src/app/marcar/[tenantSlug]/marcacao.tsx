@@ -125,6 +125,19 @@ export function Marcacao({
   } | null>(null);
   const [aEnviar, iniciarEnvio] = useTransition();
 
+  /**
+   * A hora que o assistente escolheu, à espera das horas chegarem.
+   *
+   * Mudar o serviço ou o dia limpa a hora escolhida — e deve mesmo limpar, para
+   * quem navega à mão: a hora de terça não vale na quarta. Mas a entrega do
+   * assistente muda as três coisas de uma vez, e sem isto a hora era apagada
+   * pelo mesmo efeito que a foi buscar.
+   *
+   * Guarda-se numa `ref` e não em estado: o efeito não deve voltar a correr por
+   * causa dela — só a lê quando as horas chegam.
+   */
+  const escolhaDoAssistente = useRef<string | null>(null);
+
   const servico = servicos.find((s) => s.id === servicoId) ?? null;
 
   /**
@@ -203,6 +216,21 @@ export function Marcacao({
         if (cancelado) return;
         setHorarios(r.slots ?? []);
         setMotivo(r.motivo ?? r.erro ?? null);
+
+        /*
+         * A hora do assistente só é aceite se ainda existir nestas.
+         *
+         * Entre a conversa e o recarregamento passam segundos, e nesses
+         * segundos alguém pode ter marcado pela grelha. Selecionar uma hora
+         * que já não está na lista seria oferecer o que não há — e a barra de
+         * confirmação apareceria sobre uma hora impossível.
+         */
+        const pendente = escolhaDoAssistente.current;
+        if (pendente) {
+          escolhaDoAssistente.current = null;
+          const encontrada = (r.slots ?? []).find((x) => x.iso === pendente);
+          if (encontrada) setSlot(encontrada);
+        }
       })
       .finally(() => {
         if (!cancelado) setACarregar(false);
@@ -285,9 +313,10 @@ export function Marcacao({
     slotIso: string;
     hora: string;
   }) {
+    escolhaDoAssistente.current = escolha.slotIso;
     setServicoId(escolha.servicoId);
+    setStaffId(null);
     setData(escolha.data);
-    setSlot({ iso: escolha.slotIso, hora: escolha.hora });
   }
 
   return (
