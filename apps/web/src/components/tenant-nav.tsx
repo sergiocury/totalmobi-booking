@@ -26,6 +26,10 @@ const SECOES = [
   { href: '/simulador', label: 'Simulador' },
   { href: '/disponibilidade', label: 'Disponibilidade' },
   { href: '/unidades', label: 'Unidades' },
+  // No fim, e não no princípio: quem chega ao painel quer trabalhar, não ler.
+  // Mas tem de estar no menu — uma ajuda que só se encontra por link partilhado
+  // não é ajuda de ninguém.
+  { href: '/ajuda', label: 'Ajuda' },
 ] as const;
 
 export function TenantNav({

@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation';
 
+import Link from 'next/link';
+
 import { EmptyState, PageHeader } from '@totalmobi/ui';
 
 import { canManage, loadTenantPage } from '@/lib/tenant-context';
@@ -102,6 +104,22 @@ export default async function SchedulesPage({
         title="Horários"
         description="Quando a unidade abre e quando cada profissional atende. O motor de disponibilidade parte daqui — sem horário, não há horas para oferecer."
       />
+
+      {/*
+        O link para a ajuda vive aqui, e não só no menu.
+
+        Esta é a página onde as pessoas encalham: quatro mecanismos que se
+        sobrepõem, e uma regra de precedência que não se descobre a tentar —
+        descobre-se quando um cliente marca num feriado. Quem está com a dúvida
+        está nesta página, não no menu.
+      */}
+      <Link
+        href={`/app/${tenantSlug}/ajuda`}
+        className="mb-8 inline-flex items-center gap-2 rounded-(--radius-md) border border-(--line) px-4 py-2.5 text-(length:--text-sm) transition-colors duration-(--duration-fast) hover:bg-(--surface-sunken)"
+      >
+        <span aria-hidden>?</span>
+        Exceções, ausências e feriados — qual usar em cada caso
+      </Link>
 
       <SchedulesManager
         tenantId={context.tenantId}
