@@ -110,9 +110,31 @@ const carregar = cache(async (slug: string) => {
   ]);
 
 
+  /*
+   * Só se oferece o que alguém executa.
+   *
+   * Um serviço sem ninguém ligado é um beco: aparece na lista, a pessoa
+   * escolhe-o, e nunca aparece hora nenhuma — nem pelos passos nem pelo
+   * assistente. Foi assim que a "Consulta" da Clínica Sorriso respondia
+   * "não tenho horas nesse dia" a todos os dias do calendário, o que é
+   * verdade e não é a verdade útil.
+   *
+   * A ligação conta só se for a alguém que aceita marcação online, que é
+   * exatamente quem está em `equipa`. Um profissional desligado do online não
+   * torna o serviço marcável.
+   *
+   * O dono continua a ver o serviço no painel, e a lista do que falta
+   * configurar diz-lhe que ninguém o executa. Aqui, do lado do cliente, o que
+   * não se pode marcar não se mostra.
+   */
+  const idsDaEquipa = new Set((equipa ?? []).map((p) => p.id));
+  const servicosComQuemOsFaca = new Set(
+    (ligacoes ?? []).filter((l) => idsDaEquipa.has(l.staff_id)).map((l) => l.service_id),
+  );
+
   return {
     perfil: perfil.value,
-    servicos: servicos ?? [],
+    servicos: (servicos ?? []).filter((s) => servicosComQuemOsFaca.has(s.id)),
     equipa: equipa ?? [],
     ligacoes: ligacoes ?? [],
     horarios: horarios ?? [],
