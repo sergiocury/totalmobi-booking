@@ -34,7 +34,7 @@ export default async function LoginPage({
           porque o nome já está dentro do logótipo.
         */}
         <h1>
-          <LogoBooking altura={60} prioridade />
+          <LogoBooking className="h-9 w-auto sm:h-12" prioridade />
         </h1>
         <p className="mt-4 text-pretty text-(--ink-muted)">Entre para gerir a sua agenda.</p>
       </div>

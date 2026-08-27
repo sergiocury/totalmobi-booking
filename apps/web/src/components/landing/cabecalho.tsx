@@ -49,9 +49,9 @@ export function Cabecalho() {
           : 'border-b border-transparent',
       )}
     >
-      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5 sm:px-8">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5 sm:px-8 lg:h-20">
         <Link href="/" aria-label="Totalmobi Booking — início" className="flex shrink-0">
-          <LogoBooking altura={42} prioridade />
+          <LogoBooking className="h-9 w-auto md:h-[42px] lg:h-12" prioridade />
         </Link>
 
         {/*

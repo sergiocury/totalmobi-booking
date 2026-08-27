@@ -24,3 +24,9 @@ npm-debug.log*
 
 playwright-report/
 test-results/
+
+# Os originais da marca vêm da Drive e não pertencem ao repositório: o que o
+# site usa são os derivados em `apps/web/public`, gerados a partir deles.
+/logo_booking.png
+/marca_booking.png
+/logobooking.png
