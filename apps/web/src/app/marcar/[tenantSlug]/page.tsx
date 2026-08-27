@@ -73,6 +73,7 @@ const carregar = cache(async (slug: string) => {
     { data: ligacoes },
     { data: horarios },
     { count: horariosDaUnidade },
+    { data: comAssistente },
   ] = await Promise.all([
     client
       .from('services')
@@ -103,6 +104,9 @@ const carregar = cache(async (slug: string) => {
       .from('location_business_hours')
       .select('id, locations!inner(tenant_id)', { count: 'exact', head: true })
       .eq('locations.tenant_id', perfil.value.tenant.id),
+    // Uma pergunta, um booleano. `tenant_features` nao e legivel pelo anonimo e
+    // nao deve passar a ser — ver a migration `0038`.
+    client.rpc('chat_publico_ativo' as never, { p_tenant: perfil.value.tenant.id } as never),
   ]);
 
 
@@ -113,6 +117,7 @@ const carregar = cache(async (slug: string) => {
     ligacoes: ligacoes ?? [],
     horarios: horarios ?? [],
     horariosDaUnidade: horariosDaUnidade ?? 0,
+    comAssistente: comAssistente === true,
   };
 });
 
@@ -162,7 +167,8 @@ export default async function PaginaPublica({
   // os filtrou; distingui-los aqui diria a quem perguntasse quais existem.
   if (!dados) notFound();
 
-  const { perfil, servicos, equipa, ligacoes, horarios, horariosDaUnidade } = dados;
+  const { perfil, servicos, equipa, ligacoes, horarios, horariosDaUnidade, comAssistente } =
+    dados;
 
   /*
    * A porta desta página.
@@ -257,6 +263,8 @@ export default async function PaginaPublica({
               timezone={unidade.timezone}
               maxAdvanceDays={perfil.policies.max_advance_days}
               headline={perfil.branding.public_headline}
+              tenantSlug={tenantSlug}
+              comAssistente={comAssistente}
               servicos={servicos.map((s) => ({
                 id: s.id,
                 nome: s.name,

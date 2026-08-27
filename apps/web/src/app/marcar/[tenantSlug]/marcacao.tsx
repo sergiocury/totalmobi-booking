@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { Button, cn } from '@totalmobi/ui';
 
 import { marcar, obterHorarios, type SlotPublico } from './actions';
+import { Assistente } from './assistente';
 
 /**
  * O fluxo de marcação.
@@ -88,6 +89,8 @@ export function Marcacao({
   headline,
   servicos,
   equipa,
+  tenantSlug,
+  comAssistente,
 }: {
   locationId: string;
   timezone: string;
@@ -95,6 +98,9 @@ export function Marcacao({
   headline: string | null;
   servicos: Servico[];
   equipa: Profissional[];
+  tenantSlug: string;
+  /** O plano da empresa inclui assistente? Ver a migration `0038`. */
+  comAssistente: boolean;
 }) {
   const [servicoId, setServicoId] = useState<string | null>(
     servicos.length === 1 ? servicos[0]!.id : null,
@@ -265,8 +271,30 @@ export function Marcacao({
     );
   }
 
+  /**
+   * O que a conversa encontrou entra aqui.
+   *
+   * Preenche os mesmos campos que os passos preencheriam — serviço, dia e hora.
+   * A partir daqui o caminho é exatamente o mesmo, incluindo a barra de
+   * confirmação com nome, telemóvel e consentimentos. É por isso que a conversa
+   * não precisa de recolher nada disso.
+   */
+  function aceitarEscolha(escolha: {
+    servicoId: string;
+    data: string;
+    slotIso: string;
+    hora: string;
+  }) {
+    setServicoId(escolha.servicoId);
+    setData(escolha.data);
+    setSlot({ iso: escolha.slotIso, hora: escolha.hora });
+  }
+
   return (
     <div className="space-y-7">
+      {comAssistente ? (
+        <Assistente tenantSlug={tenantSlug} onEscolha={aceitarEscolha} />
+      ) : null}
       {headline ? <h1 className="text-(length:--text-xl) font-semibold">{headline}</h1> : null}
 
       {/* 1. Serviço */}
