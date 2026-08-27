@@ -268,13 +268,40 @@ export function extrairLimitesDeHora(texto: string): {
 export function encontrarNoCatalogo(texto: string, catalogo: readonly string[]): string | null {
   const t = normalizar(texto);
 
-  // Do mais longo para o mais curto: "limpeza dentária" antes de "limpeza".
+  // Do mais longo para o mais curto: "limpeza dentária" antes de "limpeza", e
+  // "João" antes de "Jo". Quem tem nome mais específico ganha.
   const ordenado = [...catalogo].sort((a, b) => b.length - a.length);
 
   for (const nome of ordenado) {
     const n = normalizar(nome);
-    if (n.length < 3) continue;
-    if (t.includes(n)) return nome;
+    if (n.length === 0) continue;
+
+    /*
+     * O nome inteiro, como palavra.
+     *
+     * Isto começava em `if (n.length < 3) continue`, e por isso um profissional
+     * chamado **Jo** nunca era encontrado: duas letras, saía antes de ser
+     * testado. Quem escrevia "com o Jo" recebia as horas de toda a gente e
+     * acabava marcado com outra pessoa.
+     *
+     * O limite existia para evitar falsos positivos de um `includes` — "jo"
+     * apanharia "hoje". A fronteira de palavra resolve isso sem excluir nomes
+     * curtos: `jo` não casa dentro de "hoje" nem dentro de "João".
+     *
+     * E é nos dois sentidos: com o texto "com o João", o candidato "Jo" também
+     * não casa, porque a seguir vem letra. A ordem por comprimento e a
+     * fronteira, juntas, desambiguam os dois nomes.
+     */
+    if (comoPalavra(n).test(t)) return nome;
+
+    /*
+     * O nome inteiro como subcadeia.
+     *
+     * Serve o caso em que a pessoa escreve mais do que o nome tem — "limpeza
+     * dentaria profunda". A partir de três letras: abaixo disso uma subcadeia
+     * apanha demasiada coisa, e para esses a fronteira acima já respondeu.
+     */
+    if (n.length >= 3 && t.includes(n)) return nome;
 
     // Sem o título, para "Dra. Ana Martins" se apanhar com "com a Ana".
     const semTitulo = n
@@ -282,22 +309,34 @@ export function encontrarNoCatalogo(texto: string, catalogo: readonly string[]):
       .map((p) => p.replace(/\.$/, ''))
       .filter((p) => p.length > 0 && !/^(dra?|sra?)$/.test(p));
 
-    // O primeiro nome conta a partir de **três** letras. Ana, Rui, Eva e Zé são
-    // nomes próprios comuns dos dois lados do Atlântico; o limite de quatro que
-    // eu tinha posto deixava-os todos de fora — e foi exatamente o que
-    // aconteceu com a Dra. Ana.
+    // O primeiro nome conta a partir de **duas** letras, com fronteira. Ana,
+    // Rui, Eva, Zé e Jo são nomes próprios comuns dos dois lados do Atlântico.
     const primeiro = semTitulo[0];
-    if (primeiro && primeiro.length >= 3 && new RegExp(`\\b${primeiro}\\b`).test(t)) {
+    if (primeiro && primeiro.length >= 2 && comoPalavra(primeiro).test(t)) {
       return nome;
     }
 
     // Os restantes só a partir de quatro: apelidos curtos dão falsos positivos.
     for (const palavra of semTitulo.slice(1)) {
-      if (palavra.length >= 4 && new RegExp(`\\b${palavra}\\b`).test(t)) return nome;
+      if (palavra.length >= 4 && comoPalavra(palavra).test(t)) return nome;
     }
   }
 
   return null;
+}
+
+/**
+ * O termo como palavra inteira, com os caracteres especiais escapados.
+ *
+ * Sem o escape, um nome com ponto ou parêntese — "Dr. Silva (pediatria)" — não
+ * dava falso positivo: dava **exceção**, e a mensagem inteira ficava sem
+ * extração nenhuma. Um nome de profissional é texto que o cliente escreve, e
+ * texto que o cliente escreve nunca entra numa expressão regular em cru.
+ */
+const ESPECIAIS_DE_REGEX = /[.*+?^${}()|[\]\\]/g;
+
+function comoPalavra(termo: string): RegExp {
+  return new RegExp(String.raw`\b${termo.replace(ESPECIAIS_DE_REGEX, String.raw`\$&`)}\b`);
 }
 
 export interface CatalogoDoTenant {
