@@ -3,7 +3,9 @@
 import { getAvailableSlots } from '@totalmobi/availability';
 import {
   extrair,
+  filtrarPorPreferencia,
   frasearSlots,
+  nomeDoPeriodo,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
@@ -162,10 +164,24 @@ export async function falarComAssistente(entrada: {
         }),
       );
 
-      const frase = frasearSlots(slots, contexto.servico ?? 'o serviço');
-      texto = frase.texto;
+      /*
+       * O que a pessoa pediu manda na lista.
+       *
+       * O extrator ja punha `periodo` e `horaMinima` no contexto; faltava
+       * alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
+       * primeiras do dia — e o assistente parecia desatento em vez de limitado.
+       */
+      const preferido = filtrarPorPreferencia(slots, contexto);
+      const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o servico');
+
+      const nomePeriodo = preferido.relaxado ? nomeDoPeriodo(contexto.periodo) : null;
+
+      // Só se diz "de tarde não tenho" quando se sabe nomear o período.
+      texto = nomePeriodo
+        ? `Não tenho nada ${nomePeriodo} nesse dia. ${frase.texto}`
+        : frase.texto;
       opcoes = frase.opcoes;
-      contexto = { ...contexto, slotsOferecidos: slots };
+      contexto = { ...contexto, slotsOferecidos: preferido.horas };
     }
   }
 

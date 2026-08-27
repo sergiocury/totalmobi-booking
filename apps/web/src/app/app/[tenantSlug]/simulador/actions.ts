@@ -3,7 +3,9 @@
 import { getAvailableSlots } from '@totalmobi/availability';
 import {
   extrair,
+  filtrarPorPreferencia,
   frasearSlots,
+  nomeDoPeriodo,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
@@ -125,10 +127,17 @@ export async function simular(
           hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
         }));
 
-        const frase = frasearSlots(slots, contexto.servico ?? 'o serviço');
-        texto = frase.texto;
+        // O mesmo filtro dos outros dois canais. Se o simulador mostrasse
+        // horas diferentes do WhatsApp, deixava de servir para simular.
+        const preferido = filtrarPorPreferencia(slots, contexto);
+        const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o serviço');
+        const nomePeriodo = preferido.relaxado ? nomeDoPeriodo(contexto.periodo) : null;
+
+        texto = nomePeriodo
+          ? `Não tenho nada ${nomePeriodo} nesse dia. ${frase.texto}`
+          : frase.texto;
         opcoes = frase.opcoes;
-        contexto = { ...contexto, slotsOferecidos: slots };
+        contexto = { ...contexto, slotsOferecidos: preferido.horas };
       }
     }
 
