@@ -294,6 +294,9 @@ async function decidir(
   let { texto, contexto } = turno;
   let opcoes = turno.opcoes;
 
+  // Quem a pessoa pediu. O extrator já resolveu o nome contra o catálogo.
+  const profissional = (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
+
   if (turno.necessidade.tipo === 'procurar_slots') {
     const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
 
@@ -304,6 +307,7 @@ async function decidir(
         serviceId: escolhido.id,
         from: data,
         to: data,
+        ...(profissional ? { staffId: profissional.id } : {}),
       });
 
       if (dataset.ok) {
@@ -337,7 +341,7 @@ async function decidir(
   }
 
   if (turno.necessidade.tipo === 'criar_marcacao') {
-    const criada = await marcar(client, unidade.id, servicos ?? [], contexto);
+    const criada = await marcar(client, unidade.id, servicos ?? [], contexto, profissional?.id ?? null);
     texto = criada.texto;
     opcoes = undefined;
     if (!criada.ok) {
@@ -365,6 +369,7 @@ async function marcar(
   locationId: string,
   servicos: { id: string; name: string }[],
   contexto: ContextoDaConversa,
+  staffId: string | null,
 ): Promise<{ ok: boolean; texto: string }> {
   const servico = servicos.find((s) => s.name === contexto.servico);
 
@@ -381,6 +386,9 @@ async function marcar(
       phone: contexto.telefone,
     },
     source: 'whatsapp',
+    // Quem foi pedido. Sem isto a função escolhe o primeiro livre — e quem
+    // pediu uma pessoa em concreto acabaria com outra.
+    ...(staffId ? { staffId } : {}),
   });
 
   if (!resultado.ok) {

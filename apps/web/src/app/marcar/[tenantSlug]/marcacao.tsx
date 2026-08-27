@@ -309,13 +309,16 @@ export function Marcacao({
    */
   function aceitarEscolha(escolha: {
     servicoId: string;
+    staffId: string | null;
     data: string;
     slotIso: string;
     hora: string;
   }) {
     escolhaDoAssistente.current = escolha.slotIso;
     setServicoId(escolha.servicoId);
-    setStaffId(null);
+    // Quem foi pedido, se foi pedido alguém. `null` deixa em "qualquer
+    // profissional", que é o que a conversa devolve quando ninguém foi nomeado.
+    setStaffId(escolha.staffId);
     setData(escolha.data);
   }
 

@@ -59,6 +59,8 @@ export interface TurnoPublico {
   escolha?:
     | {
         servicoId: string;
+        /** Quem a pessoa pediu, se pediu alguém. `null` = qualquer um. */
+        staffId: string | null;
         data: string;
         slotIso: string;
         /** Já formatada no fuso da unidade — o cliente não sabe qual é. */
@@ -146,6 +148,17 @@ export async function falarComAssistente(entrada: {
 
   const servicoEscolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
 
+  /*
+   * Quem a pessoa pediu.
+   *
+   * O extrator resolve o nome contra o catálogo da empresa, por isso o contexto
+   * já traz o nome como está na base — "Jo" vira "João". Faltava alguém pegar
+   * nele: sem isto as horas vinham de toda a gente e a marcação saía com quem
+   * calhasse, que foi como um pedido "com o João" acabou com a Anaa.
+   */
+  const profissionalEscolhido =
+    (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
+
   if (turno.necessidade.tipo === 'procurar_slots' && servicoEscolhido) {
     const data = contexto.data ?? agora.toISOString().slice(0, 10);
     const dataset = await loadAvailabilityDataset(client, {
@@ -153,6 +166,9 @@ export async function falarComAssistente(entrada: {
       serviceId: servicoEscolhido.id,
       from: data,
       to: data,
+      // Sem isto as horas seriam de toda a gente, e oferecer a hora de outra
+      // pessoa a quem pediu uma em concreto é pior do que não ter hora.
+      ...(profissionalEscolhido ? { staffId: profissionalEscolhido.id } : {}),
     });
 
     if (dataset.ok) {
@@ -199,6 +215,7 @@ export async function falarComAssistente(entrada: {
 
     escolha = {
       servicoId: servicoEscolhido.id,
+      staffId: profissionalEscolhido?.id ?? null,
       data: contexto.data,
       slotIso: contexto.slotEscolhido,
       hora:
