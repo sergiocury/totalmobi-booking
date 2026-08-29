@@ -86,6 +86,43 @@ recebem lembretes com links que não abrem.
 gerada uma chave nova, os tokens guardados deixam de decifrar e o WhatsApp
 deixa de enviar — sem erro visível até alguém tentar.
 
+### Ligar um número de produção na Meta
+
+O caminho no painel da Meta muda com frequência. Este foi verificado contra a
+documentação em agosto de 2026, ao ligar o `+351928270391`.
+
+**Dois valores diferentes chamam-se "token".** Confundi-los custa uma tarde:
+
+| | O que é | De onde vem |
+|---|---|---|
+| *Verify token* | prova ao nosso servidor que quem chama é a Meta | **inventado por nós** — igual ao `WHATSAPP_VERIFY_TOKEN` |
+| *Access token* | autoriza a app a enviar mensagens | utilizador de sistema no Business Manager |
+
+**O access token permanente** — o do painel da app dura 24 h e está preso ao
+número de teste, por isso não serve para produção:
+
+1. `business.facebook.com/latest/settings` → **Utilizadores do sistema**
+2. **Adicionar** → criar o utilizador
+3. **Atribuir ativos**, os dois, com controlo total: a **app** (*Gerir app*) e a
+   **conta WhatsApp Business** (*Gerir contas do WhatsApp Business*)
+4. **Gerar token** → permissões `whatsapp_business_messaging`,
+   `whatsapp_business_management`, `business_management` → validade **Nunca**
+
+⚠️ **Sem o passo 3 o token sai na mesma** e falha depois, sem dizer porquê. É o
+erro mais comum aqui.
+
+**O webhook**, em *Configuração básica → Etapa 2*:
+
+- URL de callback: `https://booking.totalmobi.pt/api/webhooks/whatsapp`
+- Verificar token: o valor de `WHATSAPP_VERIFY_TOKEN` (tem de já estar no Vercel
+  e publicado, senão a rota responde 503 e a verificação falha)
+- Subscrever o campo **`messages`** — a URL fica verificada sem ele, e não chega
+  mensagem nenhuma
+
+⚠️ **Enquanto a app não estiver publicada**, a Meta só entrega webhooks de teste
+enviados do próprio painel. Com token e webhook perfeitos, mensagens de clientes
+reais não chegam. Parece avaria e é só falta de publicação.
+
 ### Redirects do Supabase
 
 Acrescentar `https://booking.totalmobi.pt/**` à lista de redirects permitidos no
@@ -209,10 +246,10 @@ quiser — mas exige o registo DKIM que o painel hoje não aceita.
 
 ## O que fica por fazer depois
 
-- **Rodar a `service_role` key.** Está em texto simples no ficheiro de memória
-  desde o M1. Antes de haver clientes reais.
-- **Números de produção da Meta**, para fechar o M13 — ver
-  [[whatsapp-duas-apps-mesma-waba]] sobre a colisão com o TeeWinner.
+- **Publicar a app da Meta.** Até lá só chegam webhooks de teste — ver a secção
+  do WhatsApp acima.
+- **Cancelar as subscrições Stripe de teste** antes de limpar os tenants, senão
+  os eventos de renovação recriam as empresas.
 - **Projeto Supabase de staging**, para os testes destrutivos e de concorrência
   que hoje não se podem correr contra produção.
 
