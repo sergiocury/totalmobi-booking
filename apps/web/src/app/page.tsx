@@ -360,12 +360,18 @@ function Canais() {
       nome: 'WhatsApp',
       texto: 'O cliente conversa naturalmente e pode marcar, alterar ou cancelar.',
     },
-    { nome: 'Website', texto: 'A marcação integrada no site que já tem, sem o refazer.' },
+    {
+      nome: 'Website',
+      texto: 'A marcação integrada no site que já tem, sem o refazer.',
+    },
     {
       nome: 'Link público',
       texto: 'A sua página de marcação, para partilhar no Instagram, no Google ou onde quiser.',
     },
-    { nome: 'Receção', texto: 'A equipa cria e altera marcações na mesma agenda.' },
+    {
+      nome: 'Receção',
+      texto: 'A equipa cria e altera marcações na mesma agenda.',
+    },
   ];
 
   return (
@@ -673,6 +679,9 @@ function Rodape() {
           <a href="#perguntas" className="hover:text-(--ink)">
             Perguntas
           </a>
+          <Link href="/privacidade" className="hover:text-(--ink)">
+            Privacidade
+          </Link>
           <Link href="/login" className="hover:text-(--ink)">
             Entrar
           </Link>

@@ -44,6 +44,7 @@ const PLATFORM_SEGMENTS: ReadonlySet<string> = new Set([
   // enviados e em links que alguém pode ter guardado.
   'marcar',
   'nova-palavra-passe',
+  'privacidade',
   'registo',
   'status',
   'subscricao',
@@ -63,6 +64,7 @@ const PUBLIC_PREFIXES: readonly string[] = [
   '/api/public',
   '/auth',
   '/login',
+  '/privacidade',
   '/m/',
   '/widget',
   '/status',
