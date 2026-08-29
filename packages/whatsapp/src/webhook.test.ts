@@ -3,13 +3,15 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 
 import { cifrar, decifrar, lerChave, mascarar } from './crypto';
-import { e164ParaWaId, janelaAberta, minutosAteFecharJanela, waIdParaE164 } from './provider';
 import {
-  assinaturaValida,
-  idDoEvento,
-  interpretarEvento,
-  responderDesafio,
-} from './webhook';
+  e164ParaWaId,
+  escolherFormato,
+  janelaAberta,
+  LIMITES_INTERATIVOS,
+  minutosAteFecharJanela,
+  waIdParaE164,
+} from './provider';
+import { assinaturaValida, idDoEvento, interpretarEvento, responderDesafio } from './webhook';
 
 /**
  * O que se pode provar sem credenciais da Meta.
@@ -201,9 +203,7 @@ describe('interpretar o payload', () => {
     const outro = structuredClone(payload);
     outro.entry[0]!.changes[0]!.value.messages![0]!.id = 'wamid.ZZZ';
 
-    expect(idDoEvento(interpretarEvento(payload))).not.toBe(
-      idDoEvento(interpretarEvento(outro)),
-    );
+    expect(idDoEvento(interpretarEvento(payload))).not.toBe(idDoEvento(interpretarEvento(outro)));
   });
 });
 
@@ -279,5 +279,137 @@ describe('cifra dos tokens', () => {
     expect(mascarado).toBe('EAAG••••cdef');
     expect(mascarado).not.toContain('1234567890');
     expect(mascarar('curto')).toBe('••••');
+  });
+});
+
+/*
+ * Botoes e listas.
+ *
+ * As opcoes iam no corpo do texto como marcas de lista: no ecra do cliente
+ * pareciam botoes e nao eram. Quem toca e nada acontece conclui que o servico
+ * esta avariado.
+ *
+ * Os limites sao os da Meta, verificados na documentacao a 2026-08-29. Nao sao
+ * preferencias de desenho: ultrapassa-los da erro no envio, e um envio falhado
+ * a meio de uma conversa deixa o cliente sem resposta nenhuma.
+ */
+describe('escolherFormato', () => {
+  it('ate tres opcoes curtas sao botoes', () => {
+    expect(escolherFormato(['Marcar', 'Alterar', 'Cancelar'], 'x')).toBe('botoes');
+  });
+
+  it('a quarta opcao ja obriga a lista', () => {
+    expect(escolherFormato(['Marcar', 'Alterar', 'Cancelar', 'Falar com alguem'], 'x')).toBe(
+      'lista',
+    );
+  });
+
+  it('sem opcoes nao ha formato', () => {
+    expect(escolherFormato([], 'x')).toBeNull();
+  });
+
+  it('ate dez opcoes cabem numa lista', () => {
+    const horas = Array.from({ length: 10 }, (_, i) => `${9 + i}:00`);
+
+    expect(escolherFormato(horas, 'x')).toBe('lista');
+    expect(escolherFormato([...horas, '19:00'], 'x')).toBeNull();
+  });
+
+  it('um corpo longo demais volta ao texto', () => {
+    const corpo = 'a'.repeat(LIMITES_INTERATIVOS.corpo + 1);
+
+    expect(escolherFormato(['Sim', 'Nao'], corpo)).toBeNull();
+    expect(escolherFormato(['Sim', 'Nao'], 'a'.repeat(LIMITES_INTERATIVOS.corpo))).toBe('botoes');
+  });
+
+  /*
+   * O caso que decide o desenho todo.
+   *
+   * O que volta da Meta quando o cliente toca e o **titulo**, e a maquina de
+   * estados compara-o com o que ofereceu. Truncar um servico chamado "Limpeza
+   * dentaria profunda com destartarizacao" faria o titulo deixar de bater certo
+   * com o catalogo — e a conversa responderia "nao percebi" a um toque num
+   * botao que ela propria desenhou. Por isso, quando nao cabe, volta ao texto.
+   */
+  it('um titulo que nao cabe inteiro faz voltar ao texto', () => {
+    const longo = 'Limpeza dentaria profunda com destartarizacao';
+    expect(longo.length).toBeGreaterThan(LIMITES_INTERATIVOS.lista.titulo);
+
+    expect(escolherFormato([longo, 'Consulta'], 'x')).toBeNull();
+  });
+
+  it('entre 21 e 24 caracteres deixa de ser botao e passa a lista', () => {
+    const titulo = 'a'.repeat(LIMITES_INTERATIVOS.botoes.titulo + 1);
+
+    expect(titulo.length).toBeLessThanOrEqual(LIMITES_INTERATIVOS.lista.titulo);
+    expect(escolherFormato([titulo], 'x')).toBe('lista');
+  });
+});
+
+describe('interpretarEvento com respostas interativas', () => {
+  const envelope = (mensagem: unknown) => ({
+    object: 'whatsapp_business_account',
+    entry: [
+      {
+        id: 'waba-1',
+        changes: [
+          {
+            value: {
+              metadata: { phone_number_id: '123' },
+              contacts: [{ wa_id: '351912345678', profile: { name: 'Sofia' } }],
+              messages: [mensagem],
+            },
+          },
+        ],
+      },
+    ],
+  });
+
+  it('le o titulo do botao tocado', () => {
+    const evento = interpretarEvento(
+      envelope({
+        id: 'wamid.1',
+        from: '351912345678',
+        timestamp: '1756400000',
+        type: 'interactive',
+        interactive: {
+          type: 'button_reply',
+          button_reply: { id: 'opcao_0', title: 'Marcar' },
+        },
+      }),
+    );
+
+    expect(evento.mensagens[0]?.texto).toBe('Marcar');
+  });
+
+  it('le o titulo da linha escolhida na lista', () => {
+    const evento = interpretarEvento(
+      envelope({
+        id: 'wamid.2',
+        from: '351912345678',
+        timestamp: '1756400000',
+        type: 'interactive',
+        interactive: {
+          type: 'list_reply',
+          list_reply: { id: 'opcao_3', title: '14:30' },
+        },
+      }),
+    );
+
+    expect(evento.mensagens[0]?.texto).toBe('14:30');
+  });
+
+  it('uma mensagem de texto continua a ser lida do sitio de sempre', () => {
+    const evento = interpretarEvento(
+      envelope({
+        id: 'wamid.3',
+        from: '351912345678',
+        timestamp: '1756400000',
+        type: 'text',
+        text: { body: 'quero marcar' },
+      }),
+    );
+
+    expect(evento.mensagens[0]?.texto).toBe('quero marcar');
   });
 });

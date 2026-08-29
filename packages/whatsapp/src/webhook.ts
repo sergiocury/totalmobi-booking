@@ -119,6 +119,21 @@ interface PayloadMeta {
           timestamp?: string;
           type?: string;
           text?: { body?: string };
+          /*
+           * A resposta a um botão ou a uma lista.
+           *
+           * Não vem em `text`. Um toque num botão chega com `type:
+           * 'interactive'` e o texto dentro de `button_reply.title` — ler só o
+           * `text.body` faria a conversa responder "não percebi" a cada toque,
+           * que é pior do que não ter botões nenhuns.
+           *
+           * Verificado na documentação da Meta a 2026-08-29.
+           */
+          interactive?: {
+            type?: string;
+            button_reply?: { id?: string; title?: string };
+            list_reply?: { id?: string; title?: string };
+          };
         }[];
         statuses?: {
           id?: string;
@@ -170,7 +185,15 @@ export function interpretarEvento(payload: unknown): EventoInterpretado {
           de: `+${m.from}`,
           waId: m.from,
           nome: nomePorWaId.get(m.from) ?? undefined,
-          texto: m.text?.body,
+          /*
+           * O título do botão é o texto da resposta.
+           *
+           * A máquina de estados compara com o que ofereceu, e o que ofereceu
+           * foi exatamente este título — ver `escolherFormato`, que só usa
+           * botões quando nenhuma opção precisa de ser truncada.
+           */
+          texto:
+            m.text?.body ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title,
           tipo: m.type ?? 'text',
           // O timestamp vem em segundos, não milissegundos. Multiplicar é a
           // diferença entre 2026 e 1970.

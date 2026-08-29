@@ -21,6 +21,7 @@ import type { Json } from '@totalmobi/database';
 import {
   decifrar,
   lerChave,
+  escolherFormato,
   MetaCloudApiProvider,
   waIdParaE164,
   type MensagemRecebida,
@@ -504,15 +505,36 @@ async function enviar(
     };
   }
 
-  const corpo = opcoes?.length ? `${texto}\n\n${opcoes.map((o) => `• ${o}`).join('\n')}` : texto;
+  /*
+   * Botoes quando cabem; texto quando nao cabem.
+   *
+   * As opcoes iam sempre no corpo, como marcas de lista — pareciam botoes no
+   * ecra do cliente e nao eram. `escolherFormato` devolve `null` quando alguma
+   * opcao nao cabe inteira no limite da Meta, e nesse caso volta-se ao texto:
+   * truncar faria o titulo que regressa deixar de bater certo com o que a
+   * conversa ofereceu. Ver a nota em `escolherFormato`.
+   */
+  const formato = opcoes?.length ? escolherFormato(opcoes, texto) : null;
 
   const provider = new MetaCloudApiProvider(conta.phone_number_id, token);
-  const enviado = await provider.send({
-    tipo: 'texto',
-    para,
-    corpo,
-    previewUrl: false,
-  });
+
+  const enviado = await provider.send(
+    formato && opcoes
+      ? {
+          tipo: 'interativa',
+          para,
+          corpo: texto,
+          formato,
+          opcoes: opcoes.map((o, i) => ({ id: `opcao_${i}`, titulo: o })),
+          rotuloDaLista: 'Escolher',
+        }
+      : {
+          tipo: 'texto',
+          para,
+          corpo: opcoes?.length ? `${texto}\n\n${opcoes.map((o) => `• ${o}`).join('\n')}` : texto,
+          previewUrl: false,
+        },
+  );
 
   return enviado.ok
     ? { ok: true, providerMessageId: enviado.value.providerMessageId }
