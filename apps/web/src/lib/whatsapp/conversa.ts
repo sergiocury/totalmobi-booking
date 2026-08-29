@@ -1,30 +1,30 @@
-import 'server-only';
+import "server-only";
 
-import { getAvailableSlots } from '@totalmobi/availability';
+import { getAvailableSlots } from "@totalmobi/availability";
 import {
+  descreverPreferencia,
   extrair,
   filtrarPorPreferencia,
   frasearSlots,
-  nomeDoPeriodo,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
-} from '@totalmobi/conversation';
+} from "@totalmobi/conversation";
 import {
   createBooking,
   loadAvailabilityDataset,
   toAvailabilityInput,
   type BookingClient,
-} from '@totalmobi/database';
-import { formatInZone } from '@totalmobi/shared';
-import type { Json } from '@totalmobi/database';
+} from "@totalmobi/database";
+import { formatInZone } from "@totalmobi/shared";
+import type { Json } from "@totalmobi/database";
 import {
   decifrar,
   lerChave,
   MetaCloudApiProvider,
   waIdParaE164,
   type MensagemRecebida,
-} from '@totalmobi/whatsapp';
+} from "@totalmobi/whatsapp";
 
 /**
  * O turno de conversa no WhatsApp.
@@ -82,7 +82,11 @@ export type Transporte = (
   para: string,
   texto: string,
   opcoes: string[] | undefined,
-) => Promise<{ ok: boolean; providerMessageId?: string | undefined; erro?: string | undefined }>;
+) => Promise<{
+  ok: boolean;
+  providerMessageId?: string | undefined;
+  erro?: string | undefined;
+}>;
 
 export async function responderNoWhatsApp(
   client: BookingClient,
@@ -93,30 +97,46 @@ export async function responderNoWhatsApp(
   // Só texto. Áudio, imagens e localizações chegam ao webhook e ficam
   // registadas, mas o bot não finge que as percebeu — responder "não percebi" a
   // uma fotografia é melhor do que responder como se fosse texto vazio.
-  if (mensagem.tipo !== 'text' || !mensagem.texto?.trim()) {
-    return { respondeu: false, motivo: 'mensagem não é texto' };
+  if (mensagem.tipo !== "text" || !mensagem.texto?.trim()) {
+    return { respondeu: false, motivo: "mensagem não é texto" };
   }
 
   const { data: conta } = await client
-    .from('tenant_whatsapp_accounts')
-    .select('phone_number_id, access_token_encrypted, token_key_id')
-    .eq('tenant_id', tenantId)
+    .from("tenant_whatsapp_accounts")
+    .select("phone_number_id, access_token_encrypted, token_key_id")
+    .eq("tenant_id", tenantId)
     .maybeSingle<ContaWhatsApp>();
 
   if (!conta?.access_token_encrypted) {
-    return { respondeu: false, motivo: 'empresa sem WhatsApp ligado' };
+    return { respondeu: false, motivo: "empresa sem WhatsApp ligado" };
   }
 
   const conversa = await obterConversa(client, tenantId, mensagem);
-  if (!conversa) return { respondeu: false, motivo: 'não foi possível abrir a conversa' };
+  if (!conversa)
+    return { respondeu: false, motivo: "não foi possível abrir a conversa" };
 
   // Regra 1. Um humano assumiu: o bot não fala por cima.
-  if (conversa.bot_paused_until && new Date(conversa.bot_paused_until) > new Date()) {
-    await gravarMensagem(client, conversa.id, 'inbound', mensagem.texto, mensagem);
-    return { respondeu: false, motivo: 'bot em pausa — humano a atender' };
+  if (
+    conversa.bot_paused_until &&
+    new Date(conversa.bot_paused_until) > new Date()
+  ) {
+    await gravarMensagem(
+      client,
+      conversa.id,
+      "inbound",
+      mensagem.texto,
+      mensagem,
+    );
+    return { respondeu: false, motivo: "bot em pausa — humano a atender" };
   }
 
-  await gravarMensagem(client, conversa.id, 'inbound', mensagem.texto, mensagem);
+  await gravarMensagem(
+    client,
+    conversa.id,
+    "inbound",
+    mensagem.texto,
+    mensagem,
+  );
 
   /*
    * O telefone entra no contexto sem ser pedido.
@@ -137,13 +157,24 @@ export async function responderNoWhatsApp(
     },
   };
 
-  const turno = await decidir(client, tenantId, conversaComTelefone, mensagem.texto);
-  if (!turno) return { respondeu: false, motivo: 'empresa sem catálogo utilizável' };
+  const turno = await decidir(
+    client,
+    tenantId,
+    conversaComTelefone,
+    mensagem.texto,
+  );
+  if (!turno)
+    return { respondeu: false, motivo: "empresa sem catálogo utilizável" };
 
-  const enviado = await transporte(conta, waIdParaE164(mensagem.waId), turno.texto, turno.opcoes);
+  const enviado = await transporte(
+    conta,
+    waIdParaE164(mensagem.waId),
+    turno.texto,
+    turno.opcoes,
+  );
 
   await client
-    .from('conversations')
+    .from("conversations")
     .update({
       current_state: turno.estado,
       // O contexto é um objeto nosso e a coluna é `jsonb`. O cast atravessa
@@ -153,11 +184,22 @@ export async function responderNoWhatsApp(
       last_message_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq('id', conversa.id);
+    .eq("id", conversa.id);
 
-  await gravarMensagem(client, conversa.id, 'outbound', turno.texto, null, enviado);
+  await gravarMensagem(
+    client,
+    conversa.id,
+    "outbound",
+    turno.texto,
+    null,
+    enviado,
+  );
 
-  return { respondeu: enviado.ok, estado: turno.estado, ...(enviado.erro ? { motivo: enviado.erro } : {}) };
+  return {
+    respondeu: enviado.ok,
+    estado: turno.estado,
+    ...(enviado.erro ? { motivo: enviado.erro } : {}),
+  };
 }
 
 // ── A conversa ───────────────────────────────────────────────────────────────
@@ -183,34 +225,34 @@ async function obterConversa(
   const agora = new Date().toISOString();
 
   const { data: existente } = await client
-    .from('conversations')
-    .select('id, current_state, context, bot_paused_until')
-    .eq('tenant_id', tenantId)
-    .eq('channel', 'whatsapp')
-    .eq('external_id', mensagem.waId)
+    .from("conversations")
+    .select("id, current_state, context, bot_paused_until")
+    .eq("tenant_id", tenantId)
+    .eq("channel", "whatsapp")
+    .eq("external_id", mensagem.waId)
     .maybeSingle<Conversa>();
 
   if (existente) {
     // `last_inbound_at` é o que abre a janela de 24 horas, e só a mensagem de
     // entrada a renova. Ver a nota em `packages/whatsapp/src/provider.ts`.
     await client
-      .from('conversations')
-      .update({ last_inbound_at: agora, status: 'open', updated_at: agora })
-      .eq('id', existente.id);
+      .from("conversations")
+      .update({ last_inbound_at: agora, status: "open", updated_at: agora })
+      .eq("id", existente.id);
     return existente;
   }
 
   const { data: nova } = await client
-    .from('conversations')
+    .from("conversations")
     .insert({
       tenant_id: tenantId,
-      channel: 'whatsapp',
+      channel: "whatsapp",
       external_id: mensagem.waId,
-      current_state: 'NEW',
+      current_state: "NEW",
       context: {},
       last_inbound_at: agora,
     })
-    .select('id, current_state, context, bot_paused_until')
+    .select("id, current_state, context, bot_paused_until")
     .single<Conversa>();
 
   return nova ?? null;
@@ -219,20 +261,30 @@ async function obterConversa(
 async function gravarMensagem(
   client: BookingClient,
   conversationId: string,
-  direction: 'inbound' | 'outbound',
+  direction: "inbound" | "outbound",
   texto: string,
   entrada: MensagemRecebida | null,
-  saida?: { ok: boolean; providerMessageId?: string | undefined; erro?: string | undefined },
+  saida?: {
+    ok: boolean;
+    providerMessageId?: string | undefined;
+    erro?: string | undefined;
+  },
 ): Promise<void> {
-  await client.from('conversation_messages').insert({
+  await client.from("conversation_messages").insert({
     conversation_id: conversationId,
     direction,
-    type: 'text',
+    type: "text",
     text: texto,
-    provider_message_id: entrada?.providerMessageId ?? saida?.providerMessageId ?? null,
-    status: direction === 'inbound' ? 'received' : saida?.ok ? 'sent' : 'failed',
-    ...(direction === 'outbound' && saida?.ok ? { sent_at: new Date().toISOString() } : {}),
-    ...(saida?.erro ? { error: saida.erro, failed_at: new Date().toISOString() } : {}),
+    provider_message_id:
+      entrada?.providerMessageId ?? saida?.providerMessageId ?? null,
+    status:
+      direction === "inbound" ? "received" : saida?.ok ? "sent" : "failed",
+    ...(direction === "outbound" && saida?.ok
+      ? { sent_at: new Date().toISOString() }
+      : {}),
+    ...(saida?.erro
+      ? { error: saida.erro, failed_at: new Date().toISOString() }
+      : {}),
   });
 }
 
@@ -251,24 +303,36 @@ async function decidir(
   conversa: Conversa,
   mensagem: string,
 ): Promise<Turno | null> {
-  const [{ data: empresa }, { data: servicos }, { data: equipa }, { data: unidades }] =
-    await Promise.all([
-      client.from('tenants').select('display_name').eq('id', tenantId).maybeSingle(),
-      client
-        .from('services')
-        .select('id, name')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .eq('bookable_online', true),
-      client.from('staff').select('id, full_name').eq('tenant_id', tenantId).eq('is_active', true),
-      client
-        .from('locations')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .is('archived_at', null)
-        .order('is_default', { ascending: false })
-        .limit(1),
-    ]);
+  const [
+    { data: empresa },
+    { data: servicos },
+    { data: equipa },
+    { data: unidades },
+  ] = await Promise.all([
+    client
+      .from("tenants")
+      .select("display_name")
+      .eq("id", tenantId)
+      .maybeSingle(),
+    client
+      .from("services")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .eq("bookable_online", true),
+    client
+      .from("staff")
+      .select("id, full_name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true),
+    client
+      .from("locations")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .is("archived_at", null)
+      .order("is_default", { ascending: false })
+      .limit(1),
+  ]);
 
   const unidade = unidades?.[0];
   if (!unidade) return null;
@@ -288,16 +352,17 @@ async function decidir(
     catalogo,
     agora,
     intencao,
-    nomeDaEmpresa: empresa?.display_name ?? 'a clínica',
+    nomeDaEmpresa: empresa?.display_name ?? "a clínica",
   });
 
   let { texto, contexto } = turno;
   let opcoes = turno.opcoes;
 
   // Quem a pessoa pediu. O extrator já resolveu o nome contra o catálogo.
-  const profissional = (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
+  const profissional =
+    (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
 
-  if (turno.necessidade.tipo === 'procurar_slots') {
+  if (turno.necessidade.tipo === "procurar_slots") {
     const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
 
     if (escolhido) {
@@ -311,28 +376,33 @@ async function decidir(
       });
 
       if (dataset.ok) {
-        const slots = getAvailableSlots(toAvailabilityInput(dataset.value, data, agora)).slots.map(
-          (s) => ({
-            iso: s.start.toISOString(),
-            hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
-          }),
-        );
+        const slots = getAvailableSlots(
+          toAvailabilityInput(dataset.value, data, agora),
+        ).slots.map((s) => ({
+          iso: s.start.toISOString(),
+          hora: formatInZone(s.start, dataset.value.timezone, "pt-PT", "time"),
+        }));
 
         /*
          * O que a pessoa pediu manda na lista.
          *
-         * O extrator ja punha `periodo` e `horaMinima` no contexto; faltava
-         * alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
+         * O extrator ja punha `periodo`, `horaMinima` e `horaMaxima` no contexto;
+         * faltava alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
          * primeiras do dia — e o assistente parecia desatento em vez de limitado.
          */
         const preferido = filtrarPorPreferencia(slots, contexto);
-        const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o servico');
+        const frase = frasearSlots(
+          preferido.horas,
+          contexto.servico ?? "o servico",
+        );
 
-          const nomePeriodo = preferido.relaxado ? nomeDoPeriodo(contexto.periodo) : null;
+        const pedido = preferido.relaxado
+          ? descreverPreferencia(contexto)
+          : null;
 
-        // Só se diz "de tarde não tenho" quando se sabe nomear o período.
-        texto = nomePeriodo
-          ? `Não tenho nada ${nomePeriodo} nesse dia. ${frase.texto}`
+        // Só se explica o relaxamento quando se sabe pôr o pedido em palavras.
+        texto = pedido
+          ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}`
           : frase.texto;
         opcoes = frase.opcoes;
         contexto = { ...contexto, slotsOferecidos: preferido.horas };
@@ -340,15 +410,21 @@ async function decidir(
     }
   }
 
-  if (turno.necessidade.tipo === 'criar_marcacao') {
-    const criada = await marcar(client, unidade.id, servicos ?? [], contexto, profissional?.id ?? null);
+  if (turno.necessidade.tipo === "criar_marcacao") {
+    const criada = await marcar(
+      client,
+      unidade.id,
+      servicos ?? [],
+      contexto,
+      profissional?.id ?? null,
+    );
     texto = criada.texto;
     opcoes = undefined;
     if (!criada.ok) {
       // Falhar a marcação **não** avança o estado: a pessoa continua no mesmo
       // ponto e pode escolher outra hora. Dar por marcado o que não foi seria a
       // pior mentira que este produto podia contar.
-      return { estado: 'SELECTING_SLOT', contexto, texto, opcoes };
+      return { estado: "SELECTING_SLOT", contexto, texto, opcoes };
     }
   }
 
@@ -374,7 +450,10 @@ async function marcar(
   const servico = servicos.find((s) => s.name === contexto.servico);
 
   if (!servico || !contexto.slotEscolhido || !contexto.telefone) {
-    return { ok: false, texto: 'Faltou-me alguma coisa para marcar. Podemos recomeçar?' };
+    return {
+      ok: false,
+      texto: "Faltou-me alguma coisa para marcar. Podemos recomeçar?",
+    };
   }
 
   const resultado = await createBooking(client, {
@@ -382,26 +461,33 @@ async function marcar(
     serviceId: servico.id,
     startAt: new Date(contexto.slotEscolhido),
     customer: {
-      firstName: contexto.nome?.trim() || 'Cliente',
+      firstName: contexto.nome?.trim() || "Cliente",
       phone: contexto.telefone,
     },
-    source: 'whatsapp',
+    source: "whatsapp",
     // Quem foi pedido. Sem isto a função escolhe o primeiro livre — e quem
     // pediu uma pessoa em concreto acabaria com outra.
     ...(staffId ? { staffId } : {}),
   });
 
   if (!resultado.ok) {
-    if (resultado.error.code === 'SLOT_TAKEN') {
+    if (resultado.error.code === "SLOT_TAKEN") {
       return {
         ok: false,
-        texto: 'Essa hora acabou de ser ocupada. Quer que veja outras horas nesse dia?',
+        texto:
+          "Essa hora acabou de ser ocupada. Quer que veja outras horas nesse dia?",
       };
     }
-    return { ok: false, texto: 'Não consegui concluir a marcação. Quer tentar outra hora?' };
+    return {
+      ok: false,
+      texto: "Não consegui concluir a marcação. Quer tentar outra hora?",
+    };
   }
 
-  return { ok: true, texto: 'Está marcado. Vai receber a confirmação por aqui.' };
+  return {
+    ok: true,
+    texto: "Está marcado. Vai receber a confirmação por aqui.",
+  };
 }
 
 /**
@@ -427,22 +513,26 @@ async function marcar(
  * A ordem comeca pelo formato correto, para que o dia em que a escrita for
  * corrigida isto continue certo sem se lhe tocar.
  */
-function decifrarGuardado(guardado: string, keyId: string, chaveBase64: string): string {
+function decifrarGuardado(
+  guardado: string,
+  keyId: string,
+  chaveBase64: string,
+): string {
   const chave = lerChave(chaveBase64, keyId);
 
   // O prefixo com que o Postgres devolve `bytea`: uma barra invertida e um `x`.
   const PREFIXO_HEX = String.raw`\x`;
 
   const bytes = guardado.startsWith(PREFIXO_HEX)
-    ? Buffer.from(guardado.slice(PREFIXO_HEX.length), 'hex')
-    : Buffer.from(guardado, 'base64');
+    ? Buffer.from(guardado.slice(PREFIXO_HEX.length), "hex")
+    : Buffer.from(guardado, "base64");
 
   try {
     // O formato certo: os bytes da coluna sao os dados cifrados.
     return decifrar(bytes, chave);
   } catch {
     // O formato herdado: os bytes da coluna sao o texto base64 dos dados.
-    return decifrar(Buffer.from(bytes.toString('utf8'), 'base64'), chave);
+    return decifrar(Buffer.from(bytes.toString("utf8"), "base64"), chave);
   }
 }
 
@@ -461,21 +551,39 @@ async function enviar(
   para: string,
   texto: string,
   opcoes: string[] | undefined,
-): Promise<{ ok: boolean; providerMessageId?: string | undefined; erro?: string | undefined }> {
-  const chaveBase64 = process.env['WHATSAPP_TOKEN_KEY'];
-  if (!chaveBase64) return { ok: false, erro: 'WHATSAPP_TOKEN_KEY em falta' };
+): Promise<{
+  ok: boolean;
+  providerMessageId?: string | undefined;
+  erro?: string | undefined;
+}> {
+  const chaveBase64 = process.env["WHATSAPP_TOKEN_KEY"];
+  if (!chaveBase64) return { ok: false, erro: "WHATSAPP_TOKEN_KEY em falta" };
 
   let token: string;
   try {
-    token = decifrarGuardado(conta.access_token_encrypted, conta.token_key_id, chaveBase64);
+    token = decifrarGuardado(
+      conta.access_token_encrypted,
+      conta.token_key_id,
+      chaveBase64,
+    );
   } catch (causa) {
-    return { ok: false, erro: `não foi possível decifrar o token: ${String(causa).slice(0, 120)}` };
+    return {
+      ok: false,
+      erro: `não foi possível decifrar o token: ${String(causa).slice(0, 120)}`,
+    };
   }
 
-  const corpo = opcoes?.length ? `${texto}\n\n${opcoes.map((o) => `• ${o}`).join('\n')}` : texto;
+  const corpo = opcoes?.length
+    ? `${texto}\n\n${opcoes.map((o) => `• ${o}`).join("\n")}`
+    : texto;
 
   const provider = new MetaCloudApiProvider(conta.phone_number_id, token);
-  const enviado = await provider.send({ tipo: 'texto', para, corpo, previewUrl: false });
+  const enviado = await provider.send({
+    tipo: "texto",
+    para,
+    corpo,
+    previewUrl: false,
+  });
 
   return enviado.ok
     ? { ok: true, providerMessageId: enviado.value.providerMessageId }

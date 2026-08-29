@@ -1,22 +1,22 @@
-'use server';
+"use server";
 
-import { getAvailableSlots } from '@totalmobi/availability';
+import { getAvailableSlots } from "@totalmobi/availability";
 import {
+  descreverPreferencia,
   extrair,
   filtrarPorPreferencia,
   frasearSlots,
-  nomeDoPeriodo,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
-} from '@totalmobi/conversation';
+} from "@totalmobi/conversation";
 import {
   createAnonClient,
   loadAvailabilityDataset,
   toAvailabilityInput,
   getPublicTenantBySlug,
-} from '@totalmobi/database';
-import { formatInZone } from '@totalmobi/shared';
+} from "@totalmobi/database";
+import { formatInZone } from "@totalmobi/shared";
 
 /**
  * O assistente na página pública.
@@ -78,11 +78,17 @@ export async function falarComAssistente(entrada: {
   conversaId?: string | undefined;
 }): Promise<TurnoPublico> {
   const mensagem = entrada.mensagem.trim().slice(0, LIMITE_DA_MENSAGEM);
-  if (!mensagem) return { conversaId: entrada.conversaId ?? '', texto: '', erro: 'Escreva algo.' };
+  if (!mensagem)
+    return {
+      conversaId: entrada.conversaId ?? "",
+      texto: "",
+      erro: "Escreva algo.",
+    };
 
   const client = createAnonClient();
   const perfil = await getPublicTenantBySlug(client, entrada.tenantSlug);
-  if (!perfil.ok) return { conversaId: '', texto: '', erro: 'Empresa não encontrada.' };
+  if (!perfil.ok)
+    return { conversaId: "", texto: "", erro: "Empresa não encontrada." };
 
   const tenantId = perfil.value.tenant.id;
 
@@ -95,33 +101,43 @@ export async function falarComAssistente(entrada: {
    * `npm run db:types:remote` depois de a migration correr; fica assinalado
    * aqui para que a remoção seja óbvia e não uma arqueologia.
    */
-  const { data: ativo } = await client.rpc('chat_publico_ativo' as never, {
-    p_tenant: tenantId,
-  } as never);
-  if (!ativo) return { conversaId: '', texto: '', erro: 'Assistente indisponível.' };
+  const { data: ativo } = await client.rpc(
+    "chat_publico_ativo" as never,
+    {
+      p_tenant: tenantId,
+    } as never,
+  );
+  if (!ativo)
+    return { conversaId: "", texto: "", erro: "Assistente indisponível." };
 
   const unidade = perfil.value.locations[0];
-  if (!unidade) return { conversaId: '', texto: '', erro: 'Assistente indisponível.' };
+  if (!unidade)
+    return { conversaId: "", texto: "", erro: "Assistente indisponível." };
 
   const [{ data: servicos }, { data: equipa }] = await Promise.all([
     client
-      .from('services')
-      .select('id, name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .eq('bookable_online', true)
-      .order('sort_order'),
+      .from("services")
+      .select("id, name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .eq("bookable_online", true)
+      .order("sort_order"),
     client
-      .from('staff')
-      .select('id, full_name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .eq('accepts_online_booking', true)
-      .order('sort_order'),
+      .from("staff")
+      .select("id, full_name")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true)
+      .eq("accepts_online_booking", true)
+      .order("sort_order"),
   ]);
 
   const conversa = await obterConversa(client, tenantId, entrada.conversaId);
-  if (!conversa) return { conversaId: '', texto: '', erro: 'Não foi possível iniciar a conversa.' };
+  if (!conversa)
+    return {
+      conversaId: "",
+      texto: "",
+      erro: "Não foi possível iniciar a conversa.",
+    };
 
   const catalogo = {
     servicos: (servicos ?? []).map((s) => s.name),
@@ -144,9 +160,11 @@ export async function falarComAssistente(entrada: {
   let texto = turno.texto;
   let opcoes = turno.opcoes;
   let contexto = turno.contexto;
-  let escolha: TurnoPublico['escolha'];
+  let escolha: TurnoPublico["escolha"];
 
-  const servicoEscolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
+  const servicoEscolhido = (servicos ?? []).find(
+    (s) => s.name === contexto.servico,
+  );
 
   /*
    * Quem a pessoa pediu.
@@ -159,7 +177,7 @@ export async function falarComAssistente(entrada: {
   const profissionalEscolhido =
     (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
 
-  if (turno.necessidade.tipo === 'procurar_slots' && servicoEscolhido) {
+  if (turno.necessidade.tipo === "procurar_slots" && servicoEscolhido) {
     const data = contexto.data ?? agora.toISOString().slice(0, 10);
     const dataset = await loadAvailabilityDataset(client, {
       locationId: unidade.id,
@@ -173,28 +191,31 @@ export async function falarComAssistente(entrada: {
 
     if (dataset.ok) {
       // As horas vêm do motor. O assistente nunca inventa uma.
-      const slots = getAvailableSlots(toAvailabilityInput(dataset.value, data, agora)).slots.map(
-        (s) => ({
-          iso: s.start.toISOString(),
-          hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
-        }),
-      );
+      const slots = getAvailableSlots(
+        toAvailabilityInput(dataset.value, data, agora),
+      ).slots.map((s) => ({
+        iso: s.start.toISOString(),
+        hora: formatInZone(s.start, dataset.value.timezone, "pt-PT", "time"),
+      }));
 
       /*
        * O que a pessoa pediu manda na lista.
        *
-       * O extrator ja punha `periodo` e `horaMinima` no contexto; faltava
-       * alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
+       * O extrator ja punha `periodo`, `horaMinima` e `horaMaxima` no contexto;
+       * faltava alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
        * primeiras do dia — e o assistente parecia desatento em vez de limitado.
        */
       const preferido = filtrarPorPreferencia(slots, contexto);
-      const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o servico');
+      const frase = frasearSlots(
+        preferido.horas,
+        contexto.servico ?? "o servico",
+      );
 
-      const nomePeriodo = preferido.relaxado ? nomeDoPeriodo(contexto.periodo) : null;
+      const pedido = preferido.relaxado ? descreverPreferencia(contexto) : null;
 
-      // Só se diz "de tarde não tenho" quando se sabe nomear o período.
-      texto = nomePeriodo
-        ? `Não tenho nada ${nomePeriodo} nesse dia. ${frase.texto}`
+      // Só se explica o relaxamento quando se sabe pôr o pedido em palavras.
+      texto = pedido
+        ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}`
         : frase.texto;
       opcoes = frase.opcoes;
       contexto = { ...contexto, slotsOferecidos: preferido.horas };
@@ -220,22 +241,30 @@ export async function falarComAssistente(entrada: {
       slotIso: contexto.slotEscolhido,
       hora:
         escolhido?.hora ??
-        formatInZone(new Date(contexto.slotEscolhido), unidade.timezone, 'pt-PT', 'time'),
+        formatInZone(
+          new Date(contexto.slotEscolhido),
+          unidade.timezone,
+          "pt-PT",
+          "time",
+        ),
     };
-    texto = 'Encontrei. Confirme os seus dados aqui em baixo e fica marcado.';
+    texto = "Encontrei. Confirme os seus dados aqui em baixo e fica marcado.";
     opcoes = undefined;
   }
 
   // Grava o estado **e** o par de mensagens. Sem elas a caixa de entrada do
   // painel mostraria metade da conversa.
-  await client.rpc('conversa_web_guardar' as never, {
-    p_id: conversa.id,
-    p_tenant: tenantId,
-    p_estado: turno.estado,
-    p_contexto: contexto,
-    p_pergunta: mensagem,
-    p_resposta: texto,
-  } as never);
+  await client.rpc(
+    "conversa_web_guardar" as never,
+    {
+      p_id: conversa.id,
+      p_tenant: tenantId,
+      p_estado: turno.estado,
+      p_contexto: contexto,
+      p_pergunta: mensagem,
+      p_resposta: texto,
+    } as never,
+  );
 
   return { conversaId: conversa.id, texto, opcoes, escolha };
 }
@@ -263,12 +292,17 @@ async function obterConversa(
   tenantId: string,
   id: string | undefined,
 ): Promise<ConversaAberta | null> {
-  const { data } = await client.rpc('conversa_web_abrir' as never, {
-    p_tenant: tenantId,
-    ...(id ? { p_id: id } : {}),
-  } as never);
+  const { data } = await client.rpc(
+    "conversa_web_abrir" as never,
+    {
+      p_tenant: tenantId,
+      ...(id ? { p_id: id } : {}),
+    } as never,
+  );
 
-  const linha = (data as { id: string; current_state: string; context: unknown }[] | null)?.[0];
+  const linha = (
+    data as { id: string; current_state: string; context: unknown }[] | null
+  )?.[0];
   if (!linha) return null;
 
   return {
