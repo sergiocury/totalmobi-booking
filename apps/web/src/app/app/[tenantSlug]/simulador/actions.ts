@@ -1,6 +1,6 @@
-"use server";
+'use server';
 
-import { getAvailableSlots } from "@totalmobi/availability";
+import { getAvailableSlots } from '@totalmobi/availability';
 import {
   descreverPreferencia,
   extrair,
@@ -9,14 +9,11 @@ import {
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
-} from "@totalmobi/conversation";
-import {
-  loadAvailabilityDataset,
-  toAvailabilityInput,
-} from "@totalmobi/database";
-import { formatInZone } from "@totalmobi/shared";
+} from '@totalmobi/conversation';
+import { loadAvailabilityDataset, toAvailabilityInput } from '@totalmobi/database';
+import { formatInZone } from '@totalmobi/shared';
 
-import { requireRole } from "@/lib/auth/context";
+import { requireRole } from '@/lib/auth/context';
 
 /**
  * O simulador de conversa.
@@ -58,20 +55,20 @@ export async function simular(
     nomeDaEmpresa: string;
   },
 ): Promise<TurnoSimulado> {
-  const guard = await requireRole(tenantId, "staff");
+  const guard = await requireRole(tenantId, 'staff');
   if (!guard.ok) {
     return {
       estado: entrada.estado,
       contexto: entrada.contexto,
-      texto: "",
+      texto: '',
       diagnostico: {
-        intent: "-",
+        intent: '-',
         confianca: 0,
-        necessidade: "-",
+        necessidade: '-',
         servico: null,
         data: null,
       },
-      erro: "Sem permissão.",
+      erro: 'Sem permissão.',
     };
   }
 
@@ -79,16 +76,12 @@ export async function simular(
 
   const [{ data: servicos }, { data: equipa }] = await Promise.all([
     client
-      .from("services")
-      .select("id, name")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true)
-      .eq("bookable_online", true),
-    client
-      .from("staff")
-      .select("id, full_name")
-      .eq("tenant_id", tenantId)
-      .eq("is_active", true),
+      .from('services')
+      .select('id, name')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .eq('bookable_online', true),
+    client.from('staff').select('id, full_name').eq('tenant_id', tenantId).eq('is_active', true),
   ]);
 
   const catalogo = {
@@ -116,10 +109,8 @@ export async function simular(
   // A única necessidade que o simulador cumpre é procurar horas — e cumpre-a
   // com o motor a sério. Criar e cancelar ficam por cumprir de propósito:
   // simular não pode mexer na agenda real.
-  if (turno.necessidade.tipo === "procurar_slots") {
-    const servicoId = (servicos ?? []).find(
-      (s) => s.name === turno.necessidade.tipo,
-    )?.id;
+  if (turno.necessidade.tipo === 'procurar_slots') {
+    const servicoId = (servicos ?? []).find((s) => s.name === turno.necessidade.tipo)?.id;
     const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
 
     if (escolhido) {
@@ -132,28 +123,19 @@ export async function simular(
       });
 
       if (dataset.ok) {
-        const resultado = getAvailableSlots(
-          toAvailabilityInput(dataset.value, data, agora),
-        );
+        const resultado = getAvailableSlots(toAvailabilityInput(dataset.value, data, agora));
         const slots = resultado.slots.map((s) => ({
           iso: s.start.toISOString(),
-          hora: formatInZone(s.start, dataset.value.timezone, "pt-PT", "time"),
+          hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
         }));
 
         // O mesmo filtro dos outros dois canais. Se o simulador mostrasse
         // horas diferentes do WhatsApp, deixava de servir para simular.
         const preferido = filtrarPorPreferencia(slots, contexto);
-        const frase = frasearSlots(
-          preferido.horas,
-          contexto.servico ?? "o serviço",
-        );
-        const pedido = preferido.relaxado
-          ? descreverPreferencia(contexto)
-          : null;
+        const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o serviço');
+        const pedido = preferido.relaxado ? descreverPreferencia(contexto) : null;
 
-        texto = pedido
-          ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}`
-          : frase.texto;
+        texto = pedido ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}` : frase.texto;
         opcoes = frase.opcoes;
         contexto = { ...contexto, slotsOferecidos: preferido.horas };
       }

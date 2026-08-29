@@ -1,4 +1,4 @@
-import type { Periodo } from "./intent";
+import type { Periodo } from './intent';
 
 /**
  * Filtrar as horas pelo que a pessoa pediu.
@@ -65,11 +65,11 @@ const JANELAS: Record<Periodo, { de: number; ate: number }> = {
 };
 
 function ehPeriodo(v: string | null | undefined): v is Periodo {
-  return v === "manha" || v === "tarde" || v === "noite";
+  return v === 'manha' || v === 'tarde' || v === 'noite';
 }
 
 function horaEmMinutos(hhmm: string): number {
-  const [h, m] = hhmm.split(":");
+  const [h, m] = hhmm.split(':');
   return Number(h) * 60 + Number(m ?? 0);
 }
 
@@ -77,15 +77,9 @@ export function filtrarPorPreferencia<T extends HoraOferecida>(
   horas: readonly T[],
   preferencia: Preferencia,
 ): { horas: T[]; relaxado: boolean } {
-  const janela = ehPeriodo(preferencia.periodo)
-    ? JANELAS[preferencia.periodo]
-    : null;
-  const minimo = preferencia.horaMinima
-    ? horaEmMinutos(preferencia.horaMinima)
-    : null;
-  const maximo = preferencia.horaMaxima
-    ? horaEmMinutos(preferencia.horaMaxima)
-    : null;
+  const janela = ehPeriodo(preferencia.periodo) ? JANELAS[preferencia.periodo] : null;
+  const minimo = preferencia.horaMinima ? horaEmMinutos(preferencia.horaMinima) : null;
+  const maximo = preferencia.horaMaxima ? horaEmMinutos(preferencia.horaMaxima) : null;
 
   if (!janela && minimo === null && maximo === null) {
     return { horas: [...horas], relaxado: false };
@@ -107,8 +101,7 @@ export function filtrarPorPreferencia<T extends HoraOferecida>(
 
     if (horaExata) return minutos === minimo;
 
-    if (janela && (minutos < janela.de * 60 || minutos >= janela.ate * 60))
-      return false;
+    if (janela && (minutos < janela.de * 60 || minutos >= janela.ate * 60)) return false;
     if (minimo !== null && minutos < minimo) return false;
     // Exclusivo: quem pede "antes das 12" não quer começar ao meio-dia.
     if (maximo !== null && minutos >= maximo) return false;
@@ -128,15 +121,9 @@ export function filtrarPorPreferencia<T extends HoraOferecida>(
  * Devolve `null` para o que não reconhece — quem chama usa isso para não
  * escrever uma frase sobre um período que não sabe nomear.
  */
-export function nomeDoPeriodo(
-  periodo: string | null | undefined,
-): string | null {
+export function nomeDoPeriodo(periodo: string | null | undefined): string | null {
   if (!ehPeriodo(periodo)) return null;
-  return periodo === "manha"
-    ? "de manhã"
-    : periodo === "tarde"
-      ? "de tarde"
-      : "à noite";
+  return periodo === 'manha' ? 'de manhã' : periodo === 'tarde' ? 'de tarde' : 'à noite';
 }
 
 /**
