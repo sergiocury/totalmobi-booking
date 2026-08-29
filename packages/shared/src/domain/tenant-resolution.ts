@@ -43,6 +43,7 @@ const PLATFORM_SEGMENTS: ReadonlySet<string> = new Set([
   // A rota antiga da página pública. Continua a funcionar: está em emails já
   // enviados e em links que alguém pode ter guardado.
   'marcar',
+  'nova-palavra-passe',
   'registo',
   'status',
   'subscricao',

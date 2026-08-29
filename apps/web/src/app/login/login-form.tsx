@@ -89,6 +89,31 @@ export function LoginForm({ next }: { next?: string | undefined }) {
       >
         {mode === 'password' ? 'Entrar com link por email' : 'Entrar com palavra-passe'}
       </Button>
+
+      {/*
+        Esqueci-me da palavra-passe.
+
+        Não havia entrada nenhuma para isto na aplicação: quem se esquecia tinha
+        de a pedir pelo painel do Supabase, o que só um administrador sabe fazer.
+
+        Manda o mesmo link de entrada por email — e depois de entrar, a página
+        de definir palavra-passe está a um clique. É o caminho com menos peças
+        do que um fluxo de recuperação à parte, e não há uma segunda
+        implementação para manter.
+      */}
+      {mode === 'password' ? (
+        <p className="mt-3 text-(length:--text-sm) text-(--ink-subtle)">
+          Esqueceu-se da palavra-passe?{' '}
+          <button
+            type="button"
+            onClick={() => setMode('magic')}
+            className="cursor-pointer text-(--brand) underline underline-offset-4"
+          >
+            Entre com um link por email
+          </button>{' '}
+          e defina uma nova.
+        </p>
+      ) : null}
     </div>
   );
 }
