@@ -1,22 +1,13 @@
 import 'server-only';
 
-import { getAvailableSlots } from '@totalmobi/availability';
 import {
-  descreverPreferencia,
   extrair,
-  filtrarPorPreferencia,
-  frasearSlots,
+  frasearProcura,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
 } from '@totalmobi/conversation';
-import {
-  createBooking,
-  loadAvailabilityDataset,
-  toAvailabilityInput,
-  type BookingClient,
-} from '@totalmobi/database';
-import { formatInZone } from '@totalmobi/shared';
+import { createBooking, type BookingClient } from '@totalmobi/database';
 import type { Json } from '@totalmobi/database';
 import {
   decifrar,
@@ -26,6 +17,8 @@ import {
   waIdParaE164,
   type MensagemRecebida,
 } from '@totalmobi/whatsapp';
+
+import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
  * O turno de conversa no WhatsApp.
@@ -314,40 +307,28 @@ async function decidir(
     const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
 
     if (escolhido) {
-      const data = contexto.data ?? agora.toISOString().slice(0, 10);
-      const dataset = await loadAvailabilityDataset(client, {
+      const hoje = agora.toISOString().slice(0, 10);
+      const encontrado = await procurarHoras(client, {
         locationId: unidade.id,
         serviceId: escolhido.id,
-        from: data,
-        to: data,
-        ...(profissional ? { staffId: profissional.id } : {}),
+        staffId: profissional?.id ?? null,
+        data: contexto.data ?? hoje,
+        preferencia: contexto,
+        agora,
       });
 
-      if (dataset.ok) {
-        const slots = getAvailableSlots(toAvailabilityInput(dataset.value, data, agora)).slots.map(
-          (s) => ({
-            iso: s.start.toISOString(),
-            hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
-          }),
-        );
+      const frase = frasearProcura(encontrado, contexto.servico ?? 'o serviço', contexto, hoje);
 
-        /*
-         * O que a pessoa pediu manda na lista.
-         *
-         * O extrator ja punha `periodo`, `horaMinima` e `horaMaxima` no contexto;
-         * faltava alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
-         * primeiras do dia — e o assistente parecia desatento em vez de limitado.
-         */
-        const preferido = filtrarPorPreferencia(slots, contexto);
-        const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o servico');
+      texto = frase.texto;
+      opcoes = frase.opcoes;
 
-        const pedido = preferido.relaxado ? descreverPreferencia(contexto) : null;
-
-        // Só se explica o relaxamento quando se sabe pôr o pedido em palavras.
-        texto = pedido ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}` : frase.texto;
-        opcoes = frase.opcoes;
-        contexto = { ...contexto, slotsOferecidos: preferido.horas };
-      }
+      // O dia segue para o contexto: a procura pode ter avançado, e sem isto a
+      // marcação sairia no dia pedido em vez do dia que a pessoa viu.
+      contexto = {
+        ...contexto,
+        slotsOferecidos: encontrado.horas,
+        ...(encontrado.data ? { data: encontrado.data } : {}),
+      };
     }
   }
 

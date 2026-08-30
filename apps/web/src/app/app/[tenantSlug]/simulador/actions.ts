@@ -1,19 +1,15 @@
 'use server';
 
-import { getAvailableSlots } from '@totalmobi/availability';
 import {
-  descreverPreferencia,
   extrair,
-  filtrarPorPreferencia,
-  frasearSlots,
+  frasearProcura,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
 } from '@totalmobi/conversation';
-import { loadAvailabilityDataset, toAvailabilityInput } from '@totalmobi/database';
-import { formatInZone } from '@totalmobi/shared';
 
 import { requireRole } from '@/lib/auth/context';
+import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
  * O simulador de conversa.
@@ -114,31 +110,36 @@ export async function simular(
     const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
 
     if (escolhido) {
-      const data = contexto.data ?? new Date().toISOString().slice(0, 10);
-      const dataset = await loadAvailabilityDataset(client, {
+      const hoje = agora.toISOString().slice(0, 10);
+
+      /*
+       * O profissional tambem aqui.
+       *
+       * Faltava: o simulador procurava sempre em toda a equipa, mesmo quando o
+       * pedido nomeava alguem. Mostrava horas que o WhatsApp nao mostraria — e
+       * um simulador que diverge do canal a serio nao simula, engana.
+       */
+      const profissional =
+        (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
+
+      const encontrado = await procurarHoras(client, {
         locationId: entrada.locationId,
         serviceId: escolhido.id,
-        from: data,
-        to: data,
+        staffId: profissional?.id ?? null,
+        data: contexto.data ?? hoje,
+        preferencia: contexto,
+        agora,
       });
 
-      if (dataset.ok) {
-        const resultado = getAvailableSlots(toAvailabilityInput(dataset.value, data, agora));
-        const slots = resultado.slots.map((s) => ({
-          iso: s.start.toISOString(),
-          hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
-        }));
+      const frase = frasearProcura(encontrado, contexto.servico ?? 'o serviço', contexto, hoje);
 
-        // O mesmo filtro dos outros dois canais. Se o simulador mostrasse
-        // horas diferentes do WhatsApp, deixava de servir para simular.
-        const preferido = filtrarPorPreferencia(slots, contexto);
-        const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o serviço');
-        const pedido = preferido.relaxado ? descreverPreferencia(contexto) : null;
-
-        texto = pedido ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}` : frase.texto;
-        opcoes = frase.opcoes;
-        contexto = { ...contexto, slotsOferecidos: preferido.horas };
-      }
+      texto = frase.texto;
+      opcoes = frase.opcoes;
+      contexto = {
+        ...contexto,
+        slotsOferecidos: encontrado.horas,
+        ...(encontrado.data ? { data: encontrado.data } : {}),
+      };
     }
 
     void servicoId;

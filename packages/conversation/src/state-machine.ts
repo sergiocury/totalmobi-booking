@@ -236,6 +236,21 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
     if (i.data && i.data !== entrada.contexto.data) {
       return pedirSlots(contexto);
     }
+
+    /*
+     * "Outro dia", "quando tem?", "o próximo que houver".
+     *
+     * Sem isto a conversa entrava em ciclo: a mensagem não trazia data nova, o
+     * contexto mantinha a antiga, a procura repetia-se igual e saía a mesma
+     * frase — vezes seguidas, até a pessoa desistir.
+     *
+     * Limpar a data faz a procura recomeçar de hoje e varrer os dias à frente.
+     * É o que uma pessoa ao balcão faria: olhar para a frente na agenda em vez
+     * de repetir "nesse dia não tenho".
+     */
+    if (querOutroDia(mensagem) || i.primeiroDisponivel) {
+      return pedirSlots({ ...contexto, data: null, slotsOferecidos: [] });
+    }
   }
 
   if (estado === 'COLLECTING_CUSTOMER_DATA') {
@@ -366,4 +381,28 @@ export function frasearSlots(
     texto: `Para ${servico}, tenho: ${primeiros.map((s) => s.hora).join(', ')}. Qual prefere?`,
     opcoes: primeiros.map((s) => s.hora),
   };
+}
+
+/**
+ * A pessoa está a pedir para olhar mais à frente.
+ *
+ * Deliberadamente largo. O custo de um falso positivo é procurar noutro dia
+ * quando não era preciso — a pessoa vê horas e escolhe. O custo de um falso
+ * negativo é repetir a mesma frase, que foi o defeito de origem.
+ *
+ * `String.raw` de propósito: escrever `\b` numa string normal dá o caractere
+ * de recuo, não a fronteira de palavra, e a expressão passa a nunca
+ * corresponder — silenciosamente.
+ */
+const PEDE_OUTRO_DIA = new RegExp(
+  String.raw`\b(outro dia|outra data|noutro dia|quando|proximo|proxima|qualquer|primeiro|primeira|mais cedo|mais tarde|disponivel|disponiveis|livre|livres|vaga|vagas|tiver|houver)\b`,
+);
+
+function querOutroDia(mensagem: string): boolean {
+  const t = mensagem
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(new RegExp(String.raw`[\u0300-\u036f]`, 'g'), '');
+
+  return PEDE_OUTRO_DIA.test(t);
 }

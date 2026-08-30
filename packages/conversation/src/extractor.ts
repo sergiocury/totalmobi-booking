@@ -29,12 +29,7 @@ import { intencaoSchema, type IntencaoExtraida, type Periodo } from './intent';
 
 /** Remove acentos e baixa a caixa. "Sábado" e "sabado" são a mesma palavra. */
 export function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return texto.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 const PADROES: { intent: IntencaoExtraida['intent']; padroes: RegExp[]; peso: number }[] = [
@@ -97,9 +92,7 @@ const PADROES: { intent: IntencaoExtraida['intent']; padroes: RegExp[]; peso: nu
   {
     intent: 'precos',
     peso: 0.85,
-    padroes: [
-      /\b(preco|precos|custa|custo|quanto|valor|valores|tabela|orcamento)\b/,
-    ],
+    padroes: [/\b(preco|precos|custa|custo|quanto|valor|valores|tabela|orcamento)\b/],
   },
   {
     intent: 'horarios',
@@ -119,7 +112,9 @@ const PADROES: { intent: IntencaoExtraida['intent']; padroes: RegExp[]; peso: nu
   {
     intent: 'agradecimento',
     peso: 0.7,
-    padroes: [/^(obrigad[oa]|obg|valeu|muito obrigad[oa]|agradeco|thanks|ate ja|ate logo|adeus)\.?!?$/],
+    padroes: [
+      /^(obrigad[oa]|obg|valeu|muito obrigad[oa]|agradeco|thanks|ate ja|ate logo|adeus)\.?!?$/,
+    ],
   },
   {
     intent: 'saudacao',
@@ -241,7 +236,8 @@ export function extrairLimitesDeHora(texto: string): {
   let minima: string | null = null;
   let maxima: string | null = null;
 
-  const depois = /\b(?:depois|apos|a partir|partir)\s*(?:das|de|dos)?\s*(\d{1,2})(?:[h:.](\d{2}))?/.exec(t);
+  const depois =
+    /\b(?:depois|apos|a partir|partir)\s*(?:das|de|dos)?\s*(\d{1,2})(?:[h:.](\d{2}))?/.exec(t);
   if (depois) minima = hora(depois[1]!, depois[2]);
 
   const antes = /\b(?:antes|ate)\s*(?:das|de|dos|as)?\s*(\d{1,2})(?:[h:.](\d{2}))?/.exec(t);
@@ -420,6 +416,8 @@ export function extrair(
 export function escalar(intencao: IntencaoExtraida, mensagem: string): boolean {
   if (intencao.intent !== 'desconhecido' && intencao.confianca >= 0.6) return false;
 
-  const palavras = normalizar(mensagem).split(' ').filter((p) => p.length > 1);
+  const palavras = normalizar(mensagem)
+    .split(' ')
+    .filter((p) => p.length > 1);
   return palavras.length >= 3;
 }

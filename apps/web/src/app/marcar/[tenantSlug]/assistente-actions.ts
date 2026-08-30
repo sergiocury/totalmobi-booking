@@ -1,22 +1,16 @@
 'use server';
 
-import { getAvailableSlots } from '@totalmobi/availability';
 import {
-  descreverPreferencia,
   extrair,
-  filtrarPorPreferencia,
-  frasearSlots,
+  frasearProcura,
   proximoTurno,
   type ContextoDaConversa,
   type Estado,
 } from '@totalmobi/conversation';
-import {
-  createAnonClient,
-  loadAvailabilityDataset,
-  toAvailabilityInput,
-  getPublicTenantBySlug,
-} from '@totalmobi/database';
+import { createAnonClient, getPublicTenantBySlug } from '@totalmobi/database';
 import { formatInZone } from '@totalmobi/shared';
+
+import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
  * O assistente na página pública.
@@ -173,43 +167,33 @@ export async function falarComAssistente(entrada: {
     (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
 
   if (turno.necessidade.tipo === 'procurar_slots' && servicoEscolhido) {
-    const data = contexto.data ?? agora.toISOString().slice(0, 10);
-    const dataset = await loadAvailabilityDataset(client, {
+    const hoje = agora.toISOString().slice(0, 10);
+    const encontrado = await procurarHoras(client, {
       locationId: unidade.id,
       serviceId: servicoEscolhido.id,
-      from: data,
-      to: data,
-      // Sem isto as horas seriam de toda a gente, e oferecer a hora de outra
-      // pessoa a quem pediu uma em concreto é pior do que não ter hora.
-      ...(profissionalEscolhido ? { staffId: profissionalEscolhido.id } : {}),
+      staffId: profissionalEscolhido?.id ?? null,
+      data: contexto.data ?? hoje,
+      preferencia: contexto,
+      agora,
     });
 
-    if (dataset.ok) {
-      // As horas vêm do motor. O assistente nunca inventa uma.
-      const slots = getAvailableSlots(toAvailabilityInput(dataset.value, data, agora)).slots.map(
-        (s) => ({
-          iso: s.start.toISOString(),
-          hora: formatInZone(s.start, dataset.value.timezone, 'pt-PT', 'time'),
-        }),
-      );
+    const frase = frasearProcura(encontrado, contexto.servico ?? 'o serviço', contexto, hoje);
 
-      /*
-       * O que a pessoa pediu manda na lista.
-       *
-       * O extrator ja punha `periodo`, `horaMinima` e `horaMaxima` no contexto;
-       * faltava alguem le-los. Sem isto, "a tarde" recebia as horas da manha — as
-       * primeiras do dia — e o assistente parecia desatento em vez de limitado.
-       */
-      const preferido = filtrarPorPreferencia(slots, contexto);
-      const frase = frasearSlots(preferido.horas, contexto.servico ?? 'o servico');
+    texto = frase.texto;
+    opcoes = frase.opcoes;
 
-      const pedido = preferido.relaxado ? descreverPreferencia(contexto) : null;
-
-      // Só se explica o relaxamento quando se sabe pôr o pedido em palavras.
-      texto = pedido ? `Não tenho nada ${pedido} nesse dia. ${frase.texto}` : frase.texto;
-      opcoes = frase.opcoes;
-      contexto = { ...contexto, slotsOferecidos: preferido.horas };
-    }
+    /*
+     * O dia segue para o contexto.
+     *
+     * A procura pode ter avançado — pediu-se amanhã e encontrou-se sexta. Se o
+     * contexto continuasse com amanhã, a hora escolhida seria entregue com a
+     * data errada, e a marcação sairia noutro dia que não o que a pessoa viu.
+     */
+    contexto = {
+      ...contexto,
+      slotsOferecidos: encontrado.horas,
+      ...(encontrado.data ? { data: encontrado.data } : {}),
+    };
   }
 
   /*
