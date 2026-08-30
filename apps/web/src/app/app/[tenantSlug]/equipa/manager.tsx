@@ -151,6 +151,7 @@ export function TeamManager({
   const [pagina, setPagina] = useState(0);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [servicosDe, setServicosDe] = useState<string | null>(null);
+  const [aEditar, setAEditar] = useState<string | null>(null);
 
   useEffect(() => {
     if (state.ok) setAberto(false);
@@ -243,6 +244,25 @@ export function TeamManager({
     });
   }
 
+  /**
+   * Gravar as alteracoes de um profissional.
+   *
+   * O QUE FALTAVA
+   *
+   * O `updateStaff` do servidor sempre aceitou nome, funcao, email, telefone e
+   * cor. A interface so lhe chamava para ligar e desligar interruptores — nao
+   * havia forma nenhuma de corrigir um nome mal escrito sem apagar a pessoa e
+   * criar outra, o que levava a agenda dela atras.
+   */
+  function guardarEdicao(id: string, patch: Record<string, unknown>) {
+    setErro(null);
+    startTransition(async () => {
+      const r = await updateStaff(tenantId, tenantSlug, id, patch);
+      if (r.error) setErro(r.error);
+      else setAEditar(null);
+    });
+  }
+
   function arquivar(id: string) {
     setErro(null);
     startTransition(async () => {
@@ -293,6 +313,7 @@ export function TeamManager({
   }
 
   const pessoaDosServicos = staff.find((p) => p.id === servicosDe) ?? null;
+  const pessoaEmEdicao = staff.find((p) => p.id === aEditar) ?? null;
 
   return (
     <>
@@ -557,6 +578,7 @@ export function TeamManager({
             onAlternarCampo={alternarCampo}
             onArquivar={arquivar}
             onVerServicos={setServicosDe}
+            onEditar={setAEditar}
           />
 
           <ListaEquipa
@@ -566,6 +588,7 @@ export function TeamManager({
             aMudar={aMudar}
             onAlternarCampo={alternarCampo}
             onVerServicos={setServicosDe}
+            onEditar={setAEditar}
           />
 
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-(length:--text-sm) text-(--ink-muted)">
@@ -603,6 +626,123 @@ export function TeamManager({
           </div>
         </>
       )}
+
+      {pessoaEmEdicao ? (
+        <DialogRoot open onOpenChange={() => setAEditar(null)}>
+          <DialogContent
+            title={`Editar ${pessoaEmEdicao.full_name}`}
+            description="O nome e a função aparecem na página pública. O email é interno."
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const dados = new FormData(e.currentTarget);
+                const texto = (campo: string) => String(dados.get(campo) ?? '').trim();
+
+                /*
+                 * Campos vazios viajam como `null`, não como `''`.
+                 *
+                 * O servidor guarda o que recebe: uma string vazia num email
+                 * ficaria na base como email vazio em vez de ausente, e depois
+                 * aparece como um contacto que existe e não serve.
+                 */
+                guardarEdicao(pessoaEmEdicao.id, {
+                  fullName: texto('fullName'),
+                  jobTitle: texto('jobTitle') || null,
+                  email: texto('email') || null,
+                  calendarColor: texto('calendarColor') || null,
+                });
+              }}
+              className="space-y-4"
+            >
+              <Field
+                label="Nome"
+                name="fullName"
+                defaultValue={pessoaEmEdicao.full_name}
+                required
+              />
+              <Field
+                label="Função"
+                name="jobTitle"
+                defaultValue={pessoaEmEdicao.job_title ?? ''}
+                placeholder="Médica dentista"
+                hint="Aparece na página pública, junto ao nome."
+              />
+              <Field
+                label="Email"
+                name="email"
+                type="email"
+                defaultValue={pessoaEmEdicao.email ?? ''}
+                hint="Interno. Não é mostrado ao cliente final."
+              />
+
+              <fieldset>
+                <legend className="mb-2 text-(length:--text-sm) font-medium">
+                  Cor no calendário
+                </legend>
+                <div className="flex flex-wrap gap-2">
+                  {CORES.map((cor) => (
+                    <label
+                      key={cor}
+                      className="cursor-pointer rounded-(--radius-full) p-0.5 has-[:checked]:ring-2 has-[:checked]:ring-(--ink) has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-(--focus-ring)"
+                    >
+                      <input
+                        type="radio"
+                        name="calendarColor"
+                        value={cor}
+                        defaultChecked={
+                          (pessoaEmEdicao.calendar_color ?? '').toUpperCase() === cor.toUpperCase()
+                        }
+                        className="sr-only"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="block size-7 rounded-(--radius-full)"
+                        style={{ background: cor }}
+                      />
+                      <span className="sr-only">{cor}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {/*
+               * A ponte para os serviços.
+               *
+               * Quem abre "Editar" quer muitas vezes é dizer o que a pessoa
+               * faz — e essa lista vive noutra caixa, alcançável só por um
+               * link discreto na tabela. Sem esta ponte, o caminho existe e
+               * não se encontra, que na prática é o mesmo que não existir.
+               */}
+              <button
+                type="button"
+                onClick={() => {
+                  const id = pessoaEmEdicao.id;
+                  setAEditar(null);
+                  setServicosDe(id);
+                }}
+                className="min-h-11 cursor-pointer text-(length:--text-sm) text-(--brand) underline underline-offset-4"
+              >
+                Serviços que {pessoaEmEdicao.full_name.split(' ')[0]} faz
+                {(porProfissional.get(pessoaEmEdicao.id)?.size ?? 0) === 0
+                  ? ' — nenhum ligado'
+                  : ` — ${porProfissional.get(pessoaEmEdicao.id)?.size}`}
+              </button>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <DialogClose asChild>
+                  <Button type="button" variant="secondary">
+                    Cancelar
+                  </Button>
+                </DialogClose>
+                <Button type="submit" loading={aMudar}>
+                  Guardar
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </DialogRoot>
+      ) : null}
 
       {pessoaDosServicos ? (
         <DialogRoot open onOpenChange={() => setServicosDe(null)}>
@@ -677,6 +817,7 @@ function TabelaEquipa({
   onAlternarCampo,
   onArquivar,
   onVerServicos,
+  onEditar,
 }: {
   visiveis: Staff[];
   servicos: Service[];
@@ -692,6 +833,7 @@ function TabelaEquipa({
   onAlternarCampo: (id: string, campo: 'isActive' | 'acceptsOnlineBooking', valor: boolean) => void;
   onArquivar: (id: string) => void;
   onVerServicos: (id: string) => void;
+  onEditar: (id: string) => void;
 }) {
   return (
     <Card className="hidden overflow-hidden p-0 md:block">
@@ -777,7 +919,17 @@ function TabelaEquipa({
                         className="size-3 shrink-0 rounded-(--radius-full) border border-(--line)"
                         style={{ background: pessoa.calendar_color ?? 'var(--ink-subtle)' }}
                       />
-                      <span className="font-medium">{pessoa.full_name}</span>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          onClick={() => onEditar(pessoa.id)}
+                          className="cursor-pointer rounded-(--radius-sm) text-left font-medium underline decoration-transparent underline-offset-4 transition-colors duration-(--duration-fast) hover:decoration-current"
+                        >
+                          {pessoa.full_name}
+                        </button>
+                      ) : (
+                        <span className="font-medium">{pessoa.full_name}</span>
+                      )}
                     </span>
                   </th>
 
@@ -809,6 +961,14 @@ function TabelaEquipa({
                   {canManage ? (
                     <td className="px-3 py-2">
                       <span className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={aMudar}
+                          onClick={() => onEditar(pessoa.id)}
+                        >
+                          Editar
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -865,6 +1025,7 @@ function ListaEquipa({
   aMudar,
   onAlternarCampo,
   onVerServicos,
+  onEditar,
 }: {
   visiveis: Staff[];
   porProfissional: Map<string, Set<string>>;
@@ -872,6 +1033,7 @@ function ListaEquipa({
   aMudar: boolean;
   onAlternarCampo: (id: string, campo: 'isActive' | 'acceptsOnlineBooking', valor: boolean) => void;
   onVerServicos: (id: string) => void;
+  onEditar: (id: string) => void;
 }) {
   return (
     <ul className="space-y-2 md:hidden">
@@ -916,6 +1078,14 @@ function ListaEquipa({
 
               {canManage ? (
                 <div className="mt-2 flex flex-wrap gap-1.5 border-t border-(--line) pt-2">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={aMudar}
+                    onClick={() => onEditar(pessoa.id)}
+                  >
+                    Editar
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
