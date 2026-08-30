@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 
 import { createBrowserClient } from '@totalmobi/database';
 import { segundaFeiraDe } from '@totalmobi/shared';
-import { Button, Card, cn } from '@totalmobi/ui';
+import { Button, Card, cn, DialogContent, DialogRoot } from '@totalmobi/ui';
 
 import {
   CalendarAdapter,
@@ -199,9 +199,7 @@ export function AgendaClient({
     };
   }, [locationId, recarregar]);
 
-  const visiveis = filtroStaff
-    ? marcacoes.filter((m) => m.staff_id === filtroStaff)
-    : marcacoes;
+  const visiveis = filtroStaff ? marcacoes.filter((m) => m.staff_id === filtroStaff) : marcacoes;
 
   const eventos: CalendarEvent[] = visiveis.map((m) => ({
     id: m.id,
@@ -224,13 +222,54 @@ export function AgendaClient({
   // Na semana, as marcações das outras pessoas não têm coluna onde aparecer.
   // Mostrá-las na mesma seria dizer que a Ana está ocupada quando quem está é o
   // João.
+  const [movimento, setMovimento] = useState<{
+    id: string;
+    novoInicio: Date;
+    staffId: string | null;
+    resolver: (ok: boolean) => void;
+    titulo: string;
+    de: Date | null;
+  } | null>(null);
+
   const eventosVisiveis =
     vista === 'semana' && filtroStaff
       ? eventos.filter((e) => e.resourceId === filtroStaff)
       : eventos;
 
+  /*
+   * Mover pergunta primeiro.
+   *
+   * O limiar de arrasto acabou com os cliques que moviam marcacoes sozinhos,
+   * mas nao com o resto: um dedo que escorrega num ecra tatil, um rato que
+   * salta, um toque com o polegar enquanto se rola a agenda. Ao balcao, com
+   * pessoas a atender, isso acontece.
+   *
+   * E desde que existe a regra `rescheduled`, mover **avisa o cliente**: um
+   * arrasto acidental manda-lhe uma mensagem a dizer que a hora mudou. Nao ha
+   * como desfazer uma mensagem enviada — e por isso a confirmacao vem **antes**
+   * da escrita, e nao um "anular" depois.
+   *
+   * Nada acontece enquanto a pergunta estiver no ecra. A promessa so resolve
+   * quando alguem responde.
+   */
   async function mover(id: string, novoInicio: Date, staffId: string | null): Promise<boolean> {
     setAviso(null);
+
+    const evento = eventos.find((e) => e.id === id);
+
+    const confirmado = await new Promise<boolean>((resolver) => {
+      setMovimento({
+        id,
+        novoInicio,
+        staffId,
+        resolver,
+        titulo: evento?.title ?? 'a marcacao',
+        de: evento ? evento.start : null,
+      });
+    });
+
+    setMovimento(null);
+    if (!confirmado) return false;
 
     const r = await moverMarcacao(tenantId, tenantSlug, id, novoInicio.toISOString(), staffId);
 
@@ -250,8 +289,7 @@ export function AgendaClient({
   const idsVisiveis = new Set(eventosVisiveis.map((e) => e.id));
   const porConfirmar = marcacoes.filter(
     (m) =>
-      idsVisiveis.has(m.id) &&
-      (m.status === 'pending' || m.status === 'awaiting_confirmation'),
+      idsVisiveis.has(m.id) && (m.status === 'pending' || m.status === 'awaiting_confirmation'),
   ).length;
 
   return (
@@ -273,9 +311,7 @@ export function AgendaClient({
 
         <div className="ml-auto flex items-center gap-3 text-(length:--text-sm)">
           {porConfirmar > 0 ? (
-            <span className="text-(--warning)">
-              {porConfirmar} por confirmar
-            </span>
+            <span className="text-(--warning)">{porConfirmar} por confirmar</span>
           ) : null}
           {atualizado ? (
             <span className="text-(--ink-subtle)" role="status">
@@ -384,8 +420,62 @@ export function AgendaClient({
           }}
         />
       ) : null}
+
+      {movimento ? (
+        <DialogRoot open onOpenChange={() => movimento.resolver(false)}>
+          <DialogContent
+            title="Mover esta marcação?"
+            description="O cliente recebe um aviso com a hora nova."
+          >
+            <p className="text-pretty">
+              <strong className="font-medium text-(--ink)">{movimento.titulo}</strong>
+              {movimento.de ? (
+                <>
+                  {' '}
+                  passa de{' '}
+                  <strong className="font-medium text-(--ink)">
+                    {horaLegivel(movimento.de, timezone)}
+                  </strong>{' '}
+                  para{' '}
+                </>
+              ) : (
+                ' passa para '
+              )}
+              <strong className="font-medium text-(--ink)">
+                {horaLegivel(movimento.novoInicio, timezone)}
+              </strong>
+              .
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => movimento.resolver(false)}>
+                Não mover
+              </Button>
+              <Button onClick={() => movimento.resolver(true)}>Mover</Button>
+            </div>
+          </DialogContent>
+        </DialogRoot>
+      ) : null}
     </div>
   );
+}
+
+/**
+ * O dia e a hora, para caber na pergunta de confirmação.
+ *
+ * Com o dia da semana por extenso: um arrasto que atravessa colunas muda o dia,
+ * e é precisamente esse o engano que mais custa — ver só "15:30" não deixa
+ * ninguém reparar que passou de domingo para segunda.
+ */
+function horaLegivel(instante: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('pt-PT', {
+    timeZone: timezone,
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(instante);
 }
 
 /**
@@ -569,7 +659,9 @@ function Filtro({
       aria-pressed={activo}
       className={cn(
         'flex min-h-11 items-center gap-2 rounded-(--radius-full) border px-4 text-(length:--text-sm)',
-        activo ? 'border-(--brand) bg-(--brand-soft) font-medium' : 'border-(--line) bg-(--surface)',
+        activo
+          ? 'border-(--brand) bg-(--brand-soft) font-medium'
+          : 'border-(--line) bg-(--surface)',
       )}
     >
       {cor ? (
@@ -605,8 +697,7 @@ function Detalhe({
       minute: '2-digit',
     }).format(new Date(iso));
 
-  const porConfirmar =
-    marcacao.status === 'pending' || marcacao.status === 'awaiting_confirmation';
+  const porConfirmar = marcacao.status === 'pending' || marcacao.status === 'awaiting_confirmation';
 
   return (
     <div
@@ -665,8 +756,8 @@ function Detalhe({
                 Cancelar marcação
               </Button>
               <p className="text-(length:--text-sm) text-(--ink-subtle)">
-                O motivo fica no histórico da marcação. É o que permite responder ao
-                cliente meses depois.
+                O motivo fica no histórico da marcação. É o que permite responder ao cliente meses
+                depois.
               </p>
             </div>
           </div>
