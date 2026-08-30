@@ -18,6 +18,9 @@ import {
   type MensagemRecebida,
 } from '@totalmobi/whatsapp';
 
+import { objecaoDoProfissional } from '@totalmobi/shared';
+
+import { carregarCatalogo } from '@/lib/marcacoes/catalogo';
 import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
@@ -257,31 +260,30 @@ async function decidir(
   conversa: Conversa,
   mensagem: string,
 ): Promise<Turno | null> {
-  const [{ data: empresa }, { data: servicos }, { data: equipa }, { data: unidades }] =
-    await Promise.all([
-      client.from('tenants').select('display_name').eq('id', tenantId).maybeSingle(),
-      client
-        .from('services')
-        .select('id, name')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .eq('bookable_online', true),
-      client.from('staff').select('id, full_name').eq('tenant_id', tenantId).eq('is_active', true),
-      client
-        .from('locations')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .is('archived_at', null)
-        .order('is_default', { ascending: false })
-        .limit(1),
-    ]);
+  const [{ data: empresa }, catalogoDaEmpresa, { data: unidades }] = await Promise.all([
+    client.from('tenants').select('display_name').eq('id', tenantId).maybeSingle(),
+    // Um servico sem ninguem associado nao entra. Era assim que a conversa
+    // acabava num beco: oferecia "Consulta", ninguem a fazia, e nenhum dia
+    // podia ter horas.
+    carregarCatalogo(client, tenantId),
+    client
+      .from('locations')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .is('archived_at', null)
+      .order('is_default', { ascending: false })
+      .limit(1),
+  ]);
 
   const unidade = unidades?.[0];
   if (!unidade) return null;
 
+  const servicos = catalogoDaEmpresa.servicos;
+  const equipa = catalogoDaEmpresa.equipa;
+
   const catalogo = {
-    servicos: (servicos ?? []).map((s) => s.name),
-    profissionais: (equipa ?? []).map((p) => p.full_name),
+    servicos: servicos.map((s) => s.name),
+    profissionais: equipa.map((p) => p.full_name),
   };
 
   const agora = new Date();
@@ -301,12 +303,21 @@ async function decidir(
   let opcoes = turno.opcoes;
 
   // Quem a pessoa pediu. O extrator já resolveu o nome contra o catálogo.
-  const profissional = (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
+  const profissional = equipa.find((p) => p.full_name === contexto.profissional) ?? null;
 
   if (turno.necessidade.tipo === 'procurar_slots') {
-    const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
+    const escolhido = servicos.find((s) => s.name === contexto.servico);
 
-    if (escolhido) {
+    const objecao =
+      escolhido && profissional
+        ? objecaoDoProfissional(catalogoDaEmpresa, escolhido.id, profissional)
+        : null;
+
+    if (objecao) {
+      // Melhor do que procurar catorze dias para depois dizer "nao encontrei".
+      texto = objecao.texto;
+      opcoes = objecao.opcoes;
+    } else if (escolhido) {
       const hoje = agora.toISOString().slice(0, 10);
       const encontrado = await procurarHoras(client, {
         locationId: unidade.id,

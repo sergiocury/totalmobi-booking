@@ -49,6 +49,16 @@ export const HORIZONTE_DE_DIAS = 14;
 export interface HorasParaConversa extends HorasEncontradas {
   /** O fuso da unidade, para quem precise de formatar mais alguma coisa. */
   readonly timezone: string | null;
+  /**
+   * A procura falhou — e isso **não** e o mesmo que nao haver horas.
+   *
+   * Sem este campo, um erro da base de dados e uma agenda vazia saiam daqui
+   * exatamente iguais, e o cliente ouvia "nao encontrei horas" nos dois casos.
+   * E o mesmo defeito do diagnostico do `/status`, que dizia "nenhum" quando o
+   * que se passava era falta de permissoes: uma resposta que parece informacao
+   * e e ausencia de informacao.
+   */
+  readonly falhou: string | null;
 }
 
 const NADA: HorasParaConversa = {
@@ -57,6 +67,7 @@ const NADA: HorasParaConversa = {
   procurouAdiante: false,
   relaxado: false,
   timezone: null,
+  falhou: null,
 };
 
 export async function procurarHoras(
@@ -74,7 +85,7 @@ export async function procurarHoras(
 ): Promise<HorasParaConversa> {
   const dias = diasDoIntervalo(entrada.data, HORIZONTE_DE_DIAS);
   const ultimo = dias[dias.length - 1];
-  if (!ultimo) return NADA;
+  if (!ultimo) return { ...NADA, falhou: `data invalida: ${entrada.data}` };
 
   const dataset = await loadAvailabilityDataset(client, {
     locationId: entrada.locationId,
@@ -86,7 +97,12 @@ export async function procurarHoras(
     ...(entrada.staffId ? { staffId: entrada.staffId } : {}),
   });
 
-  if (!dataset.ok) return NADA;
+  if (!dataset.ok) {
+    // Fica no registo do servidor: quem investiga precisa da causa, e o cliente
+    // nao precisa de a ver.
+    console.error('procurarHoras: dataset falhou', dataset.error);
+    return { ...NADA, falhou: dataset.error.message };
+  }
 
   const timezone = dataset.value.timezone;
 
@@ -101,5 +117,5 @@ export async function procurarHoras(
     ),
   }));
 
-  return { ...primeiroDiaComHoras(porDia, entrada.preferencia), timezone };
+  return { ...primeiroDiaComHoras(porDia, entrada.preferencia), timezone, falhou: null };
 }

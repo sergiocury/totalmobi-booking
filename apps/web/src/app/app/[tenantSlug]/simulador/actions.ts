@@ -9,6 +9,9 @@ import {
 } from '@totalmobi/conversation';
 
 import { requireRole } from '@/lib/auth/context';
+import { objecaoDoProfissional } from '@totalmobi/shared';
+
+import { carregarCatalogo } from '@/lib/marcacoes/catalogo';
 import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
@@ -70,19 +73,15 @@ export async function simular(
 
   const client = guard.value.client;
 
-  const [{ data: servicos }, { data: equipa }] = await Promise.all([
-    client
-      .from('services')
-      .select('id, name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .eq('bookable_online', true),
-    client.from('staff').select('id, full_name').eq('tenant_id', tenantId).eq('is_active', true),
-  ]);
+  // O mesmo catalogo dos outros dois canais. Um simulador que oferecesse um
+  // servico que o WhatsApp esconde deixava de servir para simular.
+  const empresa = await carregarCatalogo(client, tenantId);
+  const servicos = empresa.servicos;
+  const equipa = empresa.equipa;
 
   const catalogo = {
-    servicos: (servicos ?? []).map((s) => s.name),
-    profissionais: (equipa ?? []).map((p) => p.full_name),
+    servicos: servicos.map((s) => s.name),
+    profissionais: equipa.map((p) => p.full_name),
   };
 
   const agora = new Date();
@@ -106,26 +105,32 @@ export async function simular(
   // com o motor a sério. Criar e cancelar ficam por cumprir de propósito:
   // simular não pode mexer na agenda real.
   if (turno.necessidade.tipo === 'procurar_slots') {
-    const servicoId = (servicos ?? []).find((s) => s.name === turno.necessidade.tipo)?.id;
-    const escolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
+    const servicoId = servicos.find((s) => s.name === turno.necessidade.tipo)?.id;
+    const escolhido = servicos.find((s) => s.name === contexto.servico);
 
-    if (escolhido) {
+    /*
+     * O profissional pedido.
+     *
+     * O simulador procurava sempre em toda a equipa, mesmo quando o pedido
+     * nomeava alguem: mostrava horas que o WhatsApp nao mostraria, e um
+     * simulador que diverge do canal a serio nao simula, engana.
+     */
+    const profissionalPedido = equipa.find((p) => p.full_name === contexto.profissional) ?? null;
+    const objecao =
+      escolhido && profissionalPedido
+        ? objecaoDoProfissional(empresa, escolhido.id, profissionalPedido)
+        : null;
+
+    if (objecao) {
+      texto = objecao.texto;
+      opcoes = objecao.opcoes;
+    } else if (escolhido) {
       const hoje = agora.toISOString().slice(0, 10);
-
-      /*
-       * O profissional tambem aqui.
-       *
-       * Faltava: o simulador procurava sempre em toda a equipa, mesmo quando o
-       * pedido nomeava alguem. Mostrava horas que o WhatsApp nao mostraria — e
-       * um simulador que diverge do canal a serio nao simula, engana.
-       */
-      const profissional =
-        (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
 
       const encontrado = await procurarHoras(client, {
         locationId: entrada.locationId,
         serviceId: escolhido.id,
-        staffId: profissional?.id ?? null,
+        staffId: profissionalPedido?.id ?? null,
         data: contexto.data ?? hoje,
         preferencia: contexto,
         agora,

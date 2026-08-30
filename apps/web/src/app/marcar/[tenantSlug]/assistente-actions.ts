@@ -8,8 +8,9 @@ import {
   type Estado,
 } from '@totalmobi/conversation';
 import { createAnonClient, getPublicTenantBySlug } from '@totalmobi/database';
-import { formatInZone } from '@totalmobi/shared';
+import { formatInZone, objecaoDoProfissional } from '@totalmobi/shared';
 
+import { carregarCatalogo } from '@/lib/marcacoes/catalogo';
 import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
@@ -105,22 +106,15 @@ export async function falarComAssistente(entrada: {
   const unidade = perfil.value.locations[0];
   if (!unidade) return { conversaId: '', texto: '', erro: 'Assistente indisponível.' };
 
-  const [{ data: servicos }, { data: equipa }] = await Promise.all([
-    client
-      .from('services')
-      .select('id, name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .eq('bookable_online', true)
-      .order('sort_order'),
-    client
-      .from('staff')
-      .select('id, full_name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .eq('accepts_online_booking', true)
-      .order('sort_order'),
-  ]);
+  /*
+   * So o que a empresa pode mesmo fazer.
+   *
+   * Um servico sem ninguem associado nao entra no catalogo. Oferece-lo era
+   * cavar um beco: a pessoa escolhia-o e a partir dai nenhum dia tinha horas.
+   */
+  const empresa = await carregarCatalogo(client, tenantId);
+  const servicos = empresa.servicos;
+  const equipa = empresa.equipa;
 
   const conversa = await obterConversa(client, tenantId, entrada.conversaId);
   if (!conversa)
@@ -131,8 +125,8 @@ export async function falarComAssistente(entrada: {
     };
 
   const catalogo = {
-    servicos: (servicos ?? []).map((s) => s.name),
-    profissionais: (equipa ?? []).map((p) => p.full_name),
+    servicos: servicos.map((s) => s.name),
+    profissionais: equipa.map((p) => p.full_name),
   };
 
   const agora = new Date();
@@ -153,7 +147,7 @@ export async function falarComAssistente(entrada: {
   let contexto = turno.contexto;
   let escolha: TurnoPublico['escolha'];
 
-  const servicoEscolhido = (servicos ?? []).find((s) => s.name === contexto.servico);
+  const servicoEscolhido = servicos.find((s) => s.name === contexto.servico);
 
   /*
    * Quem a pessoa pediu.
@@ -163,10 +157,19 @@ export async function falarComAssistente(entrada: {
    * nele: sem isto as horas vinham de toda a gente e a marcação saía com quem
    * calhasse, que foi como um pedido "com o João" acabou com a Anaa.
    */
-  const profissionalEscolhido =
-    (equipa ?? []).find((p) => p.full_name === contexto.profissional) ?? null;
+  const profissionalEscolhido = equipa.find((p) => p.full_name === contexto.profissional) ?? null;
 
-  if (turno.necessidade.tipo === 'procurar_slots' && servicoEscolhido) {
+  const objecao =
+    servicoEscolhido && profissionalEscolhido
+      ? objecaoDoProfissional(empresa, servicoEscolhido.id, profissionalEscolhido)
+      : null;
+
+  if (objecao) {
+    // Dizer que ele nao faz aquilo e melhor do que procurar catorze dias para
+    // depois responder "nao encontrei horas" — que e verdade e nao explica nada.
+    texto = objecao.texto;
+    opcoes = objecao.opcoes;
+  } else if (turno.necessidade.tipo === 'procurar_slots' && servicoEscolhido) {
     const hoje = agora.toISOString().slice(0, 10);
     const encontrado = await procurarHoras(client, {
       locationId: unidade.id,
