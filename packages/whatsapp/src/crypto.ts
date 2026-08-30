@@ -84,3 +84,49 @@ export function mascarar(token: string): string {
   if (token.length <= 8) return '••••';
   return `${token.slice(0, 4)}••••${token.slice(-4)}`;
 }
+
+/**
+ * O token cifrado, seja qual for a forma como foi guardado.
+ *
+ * O QUE ESTA MESMO NA COLUNA
+ *
+ * `access_token_encrypted` e `bytea`, e o PostgREST devolve `bytea` como uma
+ * barra invertida seguida de `x` e do hexadecimal - nunca base64. Mas o lado
+ * que escreve faz `cifrar(...).toString('base64')` e entrega essa **string** ao
+ * insert, e o Postgres guarda os caracteres do base64 como bytes.
+ *
+ * Resultado: o conteudo esta codificado duas vezes. Ve-se a olho - os primeiros
+ * bytes lidos sao `482b545341`, que em ASCII da `H+TSA`, letras de base64 e nao
+ * um cabecalho de dados cifrados.
+ *
+ * PORQUE E QUE SE TENTAM AS DUAS
+ *
+ * A cifra e autenticada (GCM). Uma tentativa errada nao devolve lixo - falha,
+ * com a etiqueta de autenticacao a recusar. Isso torna a propria decifra num
+ * discriminador fiavel, em vez de se adivinhar o formato por heuristica.
+ *
+ * A ordem comeca pelo formato correto, para que o dia em que a escrita for
+ * corrigida isto continue certo sem se lhe tocar.
+ */
+export function decifrarTokenGuardado(
+  guardado: string,
+  keyId: string,
+  chaveBase64: string,
+): string {
+  const chave = lerChave(chaveBase64, keyId);
+
+  // O prefixo com que o Postgres devolve `bytea`: uma barra invertida e um `x`.
+  const PREFIXO_HEX = String.raw`\x`;
+
+  const bytes = guardado.startsWith(PREFIXO_HEX)
+    ? Buffer.from(guardado.slice(PREFIXO_HEX.length), 'hex')
+    : Buffer.from(guardado, 'base64');
+
+  try {
+    // O formato certo: os bytes da coluna sao os dados cifrados.
+    return decifrar(bytes, chave);
+  } catch {
+    // O formato herdado: os bytes da coluna sao o texto base64 dos dados.
+    return decifrar(Buffer.from(bytes.toString('utf8'), 'base64'), chave);
+  }
+}

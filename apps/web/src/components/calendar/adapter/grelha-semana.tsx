@@ -8,6 +8,7 @@ import { diaLocal, diasDesde, etiquetaHora, instanteDe, minutosDoDia } from '@to
 
 import { PX_POR_MINUTO } from './medidas';
 import type { CalendarProps } from './types';
+import { estadoVisual } from './estado-visual';
 import { usarArrasto } from './usar-arrasto';
 
 /**
@@ -178,6 +179,7 @@ export function GrelhaSemana({
                     const inicio = minutosDoDia(evento.start, timezone);
                     const fim = minutosDoDia(evento.end, timezone);
                     const duracao = Math.max(fim - inicio, range.stepMinutes);
+                    const estado = estadoVisual(evento.status, evento.active);
 
                     return (
                       <button
@@ -193,9 +195,7 @@ export function GrelhaSemana({
                         }}
                         className={cn(
                           'absolute inset-x-0.5 overflow-hidden rounded-(--radius-sm) border px-1.5 py-0.5 text-left text-(length:--text-sm) transition-opacity',
-                          evento.active
-                            ? 'border-(--line-strong) bg-(--surface)'
-                            : 'border-dashed border-(--line) bg-(--surface-sunken) opacity-60',
+                          estado.classes,
                           aArrastar === evento.id && 'ring-2 ring-(--brand)',
                           aGuardar === evento.id && 'animate-pulse',
                         )}
@@ -207,9 +207,10 @@ export function GrelhaSemana({
                         // A coluna é estreita e o texto é cortado quase sempre.
                         // O `title` devolve a informação completa sem obrigar a
                         // abrir a marcação.
-                        title={`${etiquetaHora(inicio)}–${etiquetaHora(fim)} · ${evento.title}${evento.subtitle ? ` · ${evento.subtitle}` : ''}`}
+                        title={`${etiquetaHora(inicio)}–${etiquetaHora(fim)} · ${evento.title}${evento.subtitle ? ` · ${evento.subtitle}` : ''} · ${estado.etiqueta}`}
                       >
                         <span className="block truncate tabular-nums text-(--ink-muted)">
+                          {estado.marca}
                           {etiquetaHora(inicio)}
                         </span>
                         <span className="block truncate font-medium">{evento.title}</span>

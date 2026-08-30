@@ -8,6 +8,7 @@ import { etiquetaHora, instanteDe, minutosDoDia } from '@totalmobi/shared';
 
 import { PX_POR_MINUTO } from './medidas';
 import type { CalendarProps } from './types';
+import { estadoVisual } from './estado-visual';
 import { usarArrasto } from './usar-arrasto';
 
 /**
@@ -166,6 +167,7 @@ export function GrelhaDia({
                     const inicio = minutosDoDia(evento.start, timezone);
                     const fim = minutosDoDia(evento.end, timezone);
                     const duracao = Math.max(fim - inicio, range.stepMinutes);
+                    const estado = estadoVisual(evento.status, evento.active);
 
                     return (
                       <button
@@ -185,9 +187,7 @@ export function GrelhaDia({
                         }}
                         className={cn(
                           'absolute inset-x-1 overflow-hidden rounded-(--radius-sm) border px-2 py-1 text-left text-(length:--text-sm) transition-opacity',
-                          evento.active
-                            ? 'border-(--line-strong) bg-(--surface)'
-                            : 'border-dashed border-(--line) bg-(--surface-sunken) opacity-60',
+                          estado.classes,
                           aArrastar?.id === evento.id && 'ring-2 ring-(--brand)',
                           aGuardar === evento.id && 'animate-pulse',
                         )}
@@ -196,9 +196,12 @@ export function GrelhaDia({
                           height: duracao * PX_POR_MINUTO - 2,
                           borderLeft: evento.color ? `3px solid ${evento.color}` : undefined,
                         }}
-                        title={`${etiquetaHora(inicio)}–${etiquetaHora(fim)} · ${evento.title}`}
+                        title={`${etiquetaHora(inicio)}–${etiquetaHora(fim)} · ${evento.title} · ${estado.etiqueta}`}
                       >
-                        <span className="block truncate font-medium">{evento.title}</span>
+                        <span className="block truncate font-medium">
+                          {estado.marca}
+                          {evento.title}
+                        </span>
                         {duracao >= 30 && evento.subtitle ? (
                           <span className="block truncate text-(--ink-muted)">
                             {evento.subtitle}

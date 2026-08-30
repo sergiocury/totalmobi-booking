@@ -1,6 +1,8 @@
 import 'server-only';
 
 import { createServiceClient } from '@totalmobi/database/server';
+
+import { enviarNotificacaoWhatsApp } from '@/lib/notificacoes/whatsapp';
 import {
   BrevoEmailProvider,
   ConsoleEmailProvider,
@@ -141,10 +143,88 @@ export async function POST(request: Request): Promise<Response> {
   let enviados = 0;
   let falhados = 0;
 
+  /*
+   * De que empresa é cada job.
+   *
+   * O `claim_notification_jobs` não devolve o `tenant_id`, e o WhatsApp precisa
+   * dele para saber que número usa. Lê-se aqui, numa consulta só, em vez de
+   * alterar a função de SQL — que teria de ser copiada por inteiro para lhe
+   * acrescentar uma coluna.
+   */
+  const tenantPorJob = new Map<string, string>();
+  {
+    const { data } = await client
+      .from('notification_jobs')
+      .select('id, tenant_id')
+      .in(
+        'id',
+        jobs.map((j) => j.jobId),
+      );
+
+    for (const linha of data ?? []) tenantPorJob.set(linha.id, linha.tenant_id);
+  }
+
+  const agora = new Date();
+
   for (const job of jobs) {
-    // Por agora só email. O WhatsApp é o M13 — e um job de um canal que ainda
-    // não existe fica pendente em vez de falhar cinco vezes.
-    if (job.channel !== 'email') continue;
+    if (job.channel === 'whatsapp') {
+      const tenantId = tenantPorJob.get(job.jobId);
+
+      const r = tenantId
+        ? await enviarNotificacaoWhatsApp(
+            client,
+            tenantId,
+            {
+              tipo: job.type,
+              para: job.to,
+              nomeDoCliente: job.customerName,
+              nomeDaEmpresa: job.tenantName,
+              servico: job.serviceName,
+              inicio: job.startAt,
+              fuso: job.timezone,
+              profissional: job.staffName,
+              unidade: job.locationName,
+              morada: job.locationAddress,
+              urlDeGestao: job.manageToken ? `${base}/m/${job.manageToken}` : null,
+            },
+            agora,
+          )
+        : ({ ok: false, erro: 'job sem empresa' } as const);
+
+      if (r.ok) {
+        await client.rpc('complete_notification_job', {
+          p_job_id: job.jobId,
+          p_provider_message_id: r.providerMessageId,
+        });
+        enviados += 1;
+      } else {
+        await client.rpc('fail_notification_job', {
+          p_job_id: job.jobId,
+          p_error: r.erro.slice(0, 500),
+        });
+        falhados += 1;
+      }
+
+      continue;
+    }
+
+    /*
+     * Um canal que ainda não sabemos enviar falha com essa razão, em vez de
+     * ficar preso.
+     *
+     * O `continue` que aqui estava saltava tudo o que não fosse email: o job
+     * era reclamado, o `attempts` subia, e ficava `pending` para sempre — sem
+     * erro nenhum a dizer porquê. Foi assim que a primeira confirmação por
+     * WhatsApp nunca chegou a ninguém.
+     */
+    if (job.channel !== 'email') {
+      await client.rpc('fail_notification_job', {
+        p_job_id: job.jobId,
+        p_error: `canal não suportado: ${job.channel}`,
+      });
+      falhados += 1;
+      continue;
+    }
 
     if (!job.to || !job.template || !job.startAt) {
       await client.rpc('fail_notification_job', {
