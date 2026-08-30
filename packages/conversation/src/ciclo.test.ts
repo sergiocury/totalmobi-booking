@@ -113,3 +113,38 @@ describe('sair do dia sem horas', () => {
     expect(r.necessidade.tipo).not.toBe('procurar_slots');
   });
 });
+
+/*
+ * A saída manual.
+ *
+ * A expiração das 24 horas resolve quem volta noutro dia. Não resolve quem se
+ * enganou no serviço agora e não tem forma nenhuma de voltar atrás.
+ */
+describe('recomeçar do zero', () => {
+  it('esquece o que já tinha sido dito', () => {
+    const r = turno('esquece, quero recomeçar');
+
+    expect(r.contexto.servico).toBeUndefined();
+    expect(r.contexto.data).toBeUndefined();
+    expect(r.contexto.profissional).toBeUndefined();
+    expect(r.estado).toBe('IDENTIFYING_INTENT');
+  });
+
+  it('volta a oferecer o princípio', () => {
+    expect(turno('menu').opcoes).toEqual(['Marcar', 'Alterar', 'Cancelar']);
+  });
+
+  /*
+   * Ganha ao estado, mas não pode ganhar por engano: escolher uma hora ou dar
+   * o nome não é pedir para recomeçar.
+   */
+  it('uma conversa normal não recomeça sozinha', () => {
+    const comHoras: ContextoDaConversa = {
+      ...PRESO,
+      slotsOferecidos: [{ iso: '2026-08-31T14:00:00.000Z', hora: '15:00' }],
+    };
+
+    expect(turno('15:00', comHoras).contexto.servico).toBe('Consulta');
+    expect(turno('o meu nome é Ana').contexto.servico).toBe('Consulta');
+  });
+});

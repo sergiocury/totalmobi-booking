@@ -1,4 +1,5 @@
 import type { CatalogoDoTenant } from './extractor';
+import { querRecomecar } from './ciclo-de-vida';
 import { extrair } from './extractor';
 import type { IntencaoExtraida } from './intent';
 
@@ -142,6 +143,28 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
   const { estado, mensagem, catalogo, agora, nomeDaEmpresa } = entrada;
   const i = entrada.intencao ?? extrair(mensagem, catalogo, agora);
   const contexto = fundir(entrada.contexto, i);
+
+  /*
+   * Recomeçar do zero.
+   *
+   * Antes de tudo, e antes até do pedido de humano: quem escreve "esquece" ou
+   * "recomeçar" está a dizer que o que se seguiu até aqui não serve, e
+   * responder-lhe a partir do contexto antigo é a definição de não ouvir.
+   *
+   * A expiração automática das 24 horas não chega — quem se enganou no serviço
+   * a meio de uma marcação não vai esperar um dia para corrigir. Ver
+   * `ciclo-de-vida.ts`.
+   */
+  if (querRecomecar(mensagem)) {
+    return {
+      estado: 'IDENTIFYING_INTENT',
+      // Contexto vazio: é isso que "recomeçar" quer dizer.
+      contexto: {},
+      texto: `Comecei de novo. Quer marcar, alterar ou cancelar?`,
+      opcoes: ['Marcar', 'Alterar', 'Cancelar'],
+      necessidade: { tipo: 'nenhuma' },
+    };
+  }
 
   // ---------------------------------------------------------------------------
   // Pedir uma pessoa ganha a tudo, a partir de qualquer estado.

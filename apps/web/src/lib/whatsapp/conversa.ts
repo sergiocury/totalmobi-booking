@@ -1,6 +1,7 @@
 import 'server-only';
 
 import {
+  deveRecomecar,
   extrair,
   frasearProcura,
   proximoTurno,
@@ -195,20 +196,48 @@ async function obterConversa(
 
   const { data: existente } = await client
     .from('conversations')
-    .select('id, current_state, context, bot_paused_until')
+    .select('id, current_state, context, bot_paused_until, last_inbound_at')
     .eq('tenant_id', tenantId)
     .eq('channel', 'whatsapp')
     .eq('external_id', mensagem.waId)
-    .maybeSingle<Conversa>();
+    .eq('status', 'open')
+    .maybeSingle<Conversa & { last_inbound_at: string | null }>();
 
   if (existente) {
-    // `last_inbound_at` é o que abre a janela de 24 horas, e só a mensagem de
-    // entrada a renova. Ver a nota em `packages/whatsapp/src/provider.ts`.
+    /*
+     * A mesma conversa, ou uma nova?
+     *
+     * Isto retomava **sempre**, e nem filtrava por conversa aberta: quem marcou
+     * uma limpeza em agosto e voltava em outubro continuava na conversa de
+     * agosto, com o serviço, a data e as horas antigas no contexto.
+     *
+     * Quando expirou — ou quando o pedido anterior já foi cumprido — fecha-se a
+     * antiga e abre-se outra. Fechar em vez de limpar por cima mantém os dois
+     * episódios separados na caixa de entrada de quem atende, que é como as
+     * pessoas se lembram deles. Ver `deveRecomecar`.
+     */
+    const expirou = deveRecomecar(
+      {
+        estado: existente.current_state,
+        ultimaEntrada: existente.last_inbound_at ? new Date(existente.last_inbound_at) : null,
+      },
+      new Date(agora),
+    );
+
+    if (!expirou) {
+      // `last_inbound_at` é o que abre a janela de 24 horas, e só a mensagem de
+      // entrada a renova. Ver a nota em `packages/whatsapp/src/provider.ts`.
+      await client
+        .from('conversations')
+        .update({ last_inbound_at: agora, updated_at: agora })
+        .eq('id', existente.id);
+      return existente;
+    }
+
     await client
       .from('conversations')
-      .update({ last_inbound_at: agora, status: 'open', updated_at: agora })
+      .update({ status: 'closed', updated_at: agora })
       .eq('id', existente.id);
-    return existente;
   }
 
   const { data: nova } = await client
