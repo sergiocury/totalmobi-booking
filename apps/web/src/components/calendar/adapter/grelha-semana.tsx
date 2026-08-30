@@ -8,6 +8,7 @@ import { diaLocal, diasDesde, etiquetaHora, instanteDe, minutosDoDia } from '@to
 
 import { PX_POR_MINUTO } from './medidas';
 import type { CalendarProps } from './types';
+import { usarArrasto } from './usar-arrasto';
 
 /**
  * A semana de uma profissional.
@@ -41,7 +42,8 @@ export function GrelhaSemana({
   onEventClick,
   onEventMove,
 }: CalendarProps) {
-  const [aArrastar, setAArrastar] = useState<string | null>(null);
+  const arrasto = usarArrasto<string>();
+  const aArrastar = arrasto.ativo;
   const [aGuardar, setAGuardar] = useState<string | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
 
@@ -69,11 +71,15 @@ export function GrelhaSemana({
   }
 
   async function largar(clientY: number, dia: string) {
-    if (!aArrastar || !onEventMove) return;
+    // Sem arrasto ativo isto foi um clique — e um clique abre, não move.
+    if (!aArrastar || !onEventMove) {
+      arrasto.terminar();
+      return;
+    }
 
     const minuto = minutoDoRato(clientY);
     const evento = events.find((e) => e.id === aArrastar);
-    setAArrastar(null);
+    arrasto.terminar();
 
     if (!evento) return;
 
@@ -144,9 +150,11 @@ export function GrelhaSemana({
                   ref={dia === colunas[0] ? areaRef : undefined}
                   className="relative"
                   style={{ height: alturaTotal }}
+                  onPointerMove={(e) => arrasto.mover(e)}
                   onPointerUp={(e) => {
                     void largar(e.clientY, dia);
                   }}
+                  onPointerLeave={() => arrasto.terminar()}
                   onClick={(e) => {
                     if (aArrastar || !onEmptyClick) return;
                     // Só o fundo cria. Um clique num bloco é para o abrir.
@@ -179,7 +187,9 @@ export function GrelhaSemana({
                         onPointerDown={(e) => {
                           if (!onEventMove) return;
                           e.currentTarget.releasePointerCapture?.(e.pointerId);
-                          setAArrastar(evento.id);
+                          // Ainda não é um arrasto: só passa a sê-lo se o rato
+                          // andar. Ver `usarArrasto`.
+                          arrasto.comecar(e, evento.id);
                         }}
                         className={cn(
                           'absolute inset-x-0.5 overflow-hidden rounded-(--radius-sm) border px-1.5 py-0.5 text-left text-(length:--text-sm) transition-opacity',

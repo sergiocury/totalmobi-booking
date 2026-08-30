@@ -66,45 +66,47 @@ export function AgendaVertical({ timezone, events, onEventClick, view }: Calenda
         diaAnterior = dia;
 
         return (
-        <li key={evento.id}>
-          {novoDia ? (
-            <h3 className="sticky top-0 z-10 -mx-1 bg-(--surface-sunken) px-3 py-1.5 text-(length:--text-sm) font-medium first-letter:uppercase">
-              {cabecalhoDe(evento.start)}
-            </h3>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => onEventClick?.(evento.id)}
-            className={cn(
-              'flex min-h-14 w-full items-start gap-3 px-1 py-3 text-left',
-              !evento.active && 'opacity-60',
-            )}
-          >
-            <span className="w-12 shrink-0 pt-0.5 text-(length:--text-sm) tabular-nums text-(--ink-muted)">
-              {hora(evento.start)}
-            </span>
-
-            <span
-              aria-hidden
-              className="mt-1 h-8 w-1 shrink-0 rounded-full"
-              style={{ background: evento.color ?? 'var(--line-strong)' }}
-            />
-
-            <span className="min-w-0 flex-1">
-              <span className={cn('block truncate font-medium', !evento.active && 'line-through')}>
-                {evento.title}
+          <li key={evento.id}>
+            {novoDia ? (
+              <h3 className="sticky top-0 z-10 -mx-1 bg-(--surface-sunken) px-3 py-1.5 text-(length:--text-sm) font-medium first-letter:uppercase">
+                {cabecalhoDe(evento.start)}
+              </h3>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => onEventClick?.(evento.id)}
+              className={cn(
+                'flex min-h-14 w-full items-start gap-3 px-1 py-3 text-left',
+                !evento.active && 'opacity-60',
+              )}
+            >
+              <span className="w-12 shrink-0 pt-0.5 text-(length:--text-sm) tabular-nums text-(--ink-muted)">
+                {hora(evento.start)}
               </span>
-              {evento.subtitle ? (
-                <span className="block truncate text-(length:--text-sm) text-(--ink-muted)">
-                  {evento.subtitle}
+
+              <span
+                aria-hidden
+                className="mt-1 h-8 w-1 shrink-0 rounded-full"
+                style={{ background: evento.color ?? 'var(--line-strong)' }}
+              />
+
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn('block truncate font-medium', !evento.active && 'line-through')}
+                >
+                  {evento.title}
                 </span>
-              ) : null}
-              <span className="block text-(length:--text-sm) text-(--ink-subtle)">
-                até {hora(evento.end)}
+                {evento.subtitle ? (
+                  <span className="block truncate text-(length:--text-sm) text-(--ink-muted)">
+                    {evento.subtitle}
+                  </span>
+                ) : null}
+                <span className="block text-(length:--text-sm) text-(--ink-subtle)">
+                  até {hora(evento.end)}
+                </span>
               </span>
-            </span>
-          </button>
-        </li>
+            </button>
+          </li>
         );
       })}
     </ul>

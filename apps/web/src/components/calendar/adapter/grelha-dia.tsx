@@ -8,6 +8,7 @@ import { etiquetaHora, instanteDe, minutosDoDia } from '@totalmobi/shared';
 
 import { PX_POR_MINUTO } from './medidas';
 import type { CalendarProps } from './types';
+import { usarArrasto } from './usar-arrasto';
 
 /**
  * A grelha do dia, com uma coluna por profissional.
@@ -49,9 +50,8 @@ export function GrelhaDia({
   onEventClick,
   onEventMove,
 }: CalendarProps) {
-  const [aArrastar, setAArrastar] = useState<{ id: string; minuto: number; coluna: string | null } | null>(
-    null,
-  );
+  const arrasto = usarArrasto<{ id: string; minuto: number; coluna: string | null }>();
+  const aArrastar = arrasto.ativo;
   const [aGuardar, setAGuardar] = useState<string | null>(null);
   const areaRef = useRef<HTMLDivElement>(null);
 
@@ -74,11 +74,15 @@ export function GrelhaDia({
   }
 
   async function largar(clientY: number, colunaId: string | null) {
-    if (!aArrastar || !onEventMove) return;
+    // Sem arrasto ativo isto foi um clique — e um clique abre, não move.
+    if (!aArrastar || !onEventMove) {
+      arrasto.terminar();
+      return;
+    }
 
     const minuto = minutoDoRato(clientY);
     const evento = events.find((e) => e.id === aArrastar.id);
-    setAArrastar(null);
+    arrasto.terminar();
 
     if (!evento) return;
 
@@ -134,9 +138,11 @@ export function GrelhaDia({
                   ref={coluna.id === colunas[0]!.id ? areaRef : undefined}
                   className="relative"
                   style={{ height: alturaTotal }}
+                  onPointerMove={(e) => arrasto.mover(e)}
                   onPointerUp={(e) => {
                     void largar(e.clientY, coluna.id === '__sem__' ? null : coluna.id);
                   }}
+                  onPointerLeave={() => arrasto.terminar()}
                   onClick={(e) => {
                     if (aArrastar || !onEmptyClick) return;
                     // Só o fundo cria. Um clique num bloco é para o abrir.
@@ -169,7 +175,13 @@ export function GrelhaDia({
                         onPointerDown={(e) => {
                           if (!onEventMove) return;
                           e.currentTarget.releasePointerCapture?.(e.pointerId);
-                          setAArrastar({ id: evento.id, minuto: inicio, coluna: evento.resourceId });
+                          // Ainda não é um arrasto: só passa a sê-lo se o rato
+                          // andar. Ver `usarArrasto`.
+                          arrasto.comecar(e, {
+                            id: evento.id,
+                            minuto: inicio,
+                            coluna: evento.resourceId,
+                          });
                         }}
                         className={cn(
                           'absolute inset-x-1 overflow-hidden rounded-(--radius-sm) border px-2 py-1 text-left text-(length:--text-sm) transition-opacity',
