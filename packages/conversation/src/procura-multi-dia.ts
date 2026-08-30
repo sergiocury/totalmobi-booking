@@ -176,12 +176,26 @@ export function frasearProcura(
   const quando = comMaiuscula(nomeDoDia(encontrado.data, hoje));
   const pedido = encontrado.relaxado ? descreverPreferencia(preferencia) : null;
 
-  if (!encontrado.procurouAdiante) {
-    const prefixo = pedido ? `Não tenho nada ${pedido} nesse dia. ` : '';
-    return { texto: `${prefixo}Para ${servico}, tenho: ${lista}. Qual prefere?`, opcoes };
-  }
+  /*
+   * O dia vem sempre, e vem primeiro.
+   *
+   * Dizia-se o dia só quando a procura tinha avançado. No dia pedido a frase
+   * era "Para implante, tenho: 09:00, 09:15…" — e quem tinha escolhido "amanhã"
+   * três mensagens antes lia aquilo como sendo hoje. Aconteceu em produção a 30
+   * de agosto de 2026: a marcação ficou certa, e a pessoa saiu convencida de
+   * que era noutro dia.
+   *
+   * Num assistente de marcações, a hora sem o dia é meia informação — e a
+   * metade que falta é a que faz alguém aparecer no dia errado.
+   */
+  const prefixo = pedido
+    ? `Não tenho nada ${pedido} ${encontrado.procurouAdiante ? 'nos próximos dias' : 'nesse dia'}. `
+    : encontrado.procurouAdiante
+      ? 'Nesse dia não tenho. '
+      : '';
 
-  const prefixo = pedido ? `Não tenho nada ${pedido} nos próximos dias. ` : 'Nesse dia não tenho. ';
-
-  return { texto: `${prefixo}${quando} tenho: ${lista}. Qual prefere?`, opcoes };
+  return {
+    texto: `${prefixo}${quando}, para ${servico} tenho: ${lista}. Qual prefere?`,
+    opcoes,
+  };
 }

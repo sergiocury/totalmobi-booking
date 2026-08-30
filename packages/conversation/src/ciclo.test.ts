@@ -65,8 +65,14 @@ describe('sair do dia sem horas', () => {
       const r = turno(pedido);
 
       expect(r.necessidade.tipo).toBe('procurar_slots');
-      // A data limpa é o que faz a procura recomeçar e varrer os dias à frente.
-      expect(r.contexto.data).toBeNull();
+
+      /*
+       * O que interessa é não ficar preso no dia que não tinha horas. Ou a data
+       * é limpa, ou passa a ser hoje — "qualquer dia serve" resolve para hoje
+       * desde que o extrator o aprendeu. Nos dois casos a procura recomeça e
+       * varre os dias à frente; o que não pode é continuar em 31 de agosto.
+       */
+      expect(r.contexto.data ?? null).not.toBe('2026-08-31');
     });
   }
 

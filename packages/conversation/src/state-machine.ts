@@ -1,5 +1,6 @@
 import type { CatalogoDoTenant } from './extractor';
 import { querRecomecar } from './ciclo-de-vida';
+import { nomeDoDia } from './procura-multi-dia';
 import { extrair } from './extractor';
 import type { IntencaoExtraida } from './intent';
 
@@ -206,6 +207,28 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
     return { estado, contexto, texto: '', necessidade: { tipo: 'nenhuma' } };
   }
 
+  /*
+   * Remarcar ainda nao se faz por conversa.
+   *
+   * O caminho de remarcacao — encontrar a marcacao da pessoa, oferecer horas
+   * novas, chamar o `reschedule_booking` — nao esta construido neste canal.
+   * Ate estar, o que **nao** pode acontecer e cair no caminho de marcar: foi
+   * assim que um pedido de remarcacao criou uma segunda marcacao e deixou o
+   * cliente com duas.
+   *
+   * Passa-se a uma pessoa. A conversa fica visivel na caixa de entrada do
+   * painel, e o bot cala-se — que e melhor do que agir errado depressa.
+   */
+  if (i.intent === 'remarcar') {
+    return {
+      estado: 'WAITING_HUMAN',
+      contexto,
+      texto:
+        'Para remarcar preciso de falar com a equipa — nao quero criar uma marcacao a mais. Ja avisei alguem, que lhe responde por aqui.',
+      necessidade: { tipo: 'chamar_humano' },
+    };
+  }
+
   if (i.intent === 'cancelar') {
     return {
       estado: 'MANAGING_BOOKING',
@@ -306,7 +329,7 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
       return {
         estado: 'CONFIRMING',
         contexto: comNome,
-        texto: `Obrigado, ${texto}. ${resumoDaMarcacao(comNome)} Confirmo?`,
+        texto: `Obrigado, ${texto}. ${resumoDaMarcacao(comNome, agora)} Confirmo?`,
         opcoes: ['Confirmar', 'Cancelar'],
         necessidade: { tipo: 'nenhuma' },
       };
@@ -467,8 +490,12 @@ function querOutroDia(mensagem: string): boolean {
  * Só se diz o que se sabe. Um campo em falta desaparece da frase em vez de
  * aparecer vazio.
  */
-function resumoDaMarcacao(contexto: ContextoDaConversa): string {
+function resumoDaMarcacao(contexto: ContextoDaConversa, agora: Date): string {
   const partes = [contexto.servico];
+
+  // O dia antes da hora: é o que distingue "amanhã às 9:30" de "hoje às 9:30",
+  // e foi a metade que faltou numa conversa real.
+  if (contexto.data) partes.push(nomeDoDia(contexto.data, agora.toISOString().slice(0, 10)));
 
   const hora = contexto.slotsOferecidos?.find((s) => s.iso === contexto.slotEscolhido)?.hora;
   if (hora) partes.push(`às ${hora}`);

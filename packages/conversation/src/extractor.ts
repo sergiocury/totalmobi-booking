@@ -62,6 +62,18 @@ const PADROES: { intent: IntencaoExtraida['intent']; padroes: RegExp[]; peso: nu
       /\b(remarcar|remarca|remarco|reagendar|reagenda|adiar|adia|mudar|muda|trocar|troca|alterar|altera)\b.*\b(marcacao|consulta|hora|dia|horario|agendamento)\b/,
       /\b(marcacao|consulta|hora|horario|agendamento)\b.*\b(remarcar|reagendar|adiar|mudar|trocar|alterar)\b/,
       /\bpassar\b.*\bpara\b.*\b(outro|outra)\b/,
+      /*
+       * Os verbos que nao precisam de complemento.
+       *
+       * "Poderia remarcar para mais tarde?" nao tem nenhum dos substantivos
+       * exigidos acima, e por isso caiu no caminho de marcar: criou uma
+       * **segunda** marcacao em vez de mexer na primeira. Aconteceu em producao
+       * a 30 de agosto de 2026, e o cliente ficou com duas.
+       *
+       * "Remarcar" e "reagendar" nao sao ambiguos — ninguem remarca o que ainda
+       * nao marcou.
+       */
+      /\b(remarcar|remarca|remarco|reagendar|reagenda|reagendo)\b/,
     ],
   },
   {
@@ -175,6 +187,24 @@ export function extrairData(texto: string, agora: Date): string | null {
     const d = new Date(agora);
     d.setDate(d.getDate() + 1);
     return iso(d);
+  }
+
+  /*
+   * "Esta semana", "qualquer dia", "o mais cedo possivel".
+   *
+   * O assistente **oferecia "Esta semana" como botao** e depois nao sabia le-lo:
+   * o contexto ficava sem data, a pergunta repetia-se, e a conversa entrava em
+   * ciclo. Aconteceu em producao a 30 de agosto de 2026 — duas vezes seguidas,
+   * com o mesmo botao que o proprio bot tinha desenhado.
+   *
+   * Resolve-se para **hoje**, e nao para o fim da semana: a procura varre os
+   * dias a frente a partir dai, por isso "esta semana" e "a partir de hoje"
+   * dao a mesma resposta. Ver `primeiroDiaComHoras`.
+   */
+  if (
+    /\b(esta semana|nesta semana|qualquer dia|quando puder|o mais cedo|proximos dias)\b/.test(t)
+  ) {
+    return iso(agora);
   }
 
   // "dia 27", "no dia 3"
