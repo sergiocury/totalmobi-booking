@@ -92,4 +92,21 @@ describe('comporTextoDaNotificacao', () => {
     expect(t).toContain('Lisboa — Avenida');
     expect(t).not.toContain('—  ');
   });
+
+  /*
+   * Mover uma marcação e não avisar é pior do que não mover: a pessoa aparece à
+   * hora antiga. A hora nova vai em destaque, porque é a única coisa que mudou.
+   */
+  it('a remarcação destaca a hora nova', () => {
+    const t = comporTextoDaNotificacao({ ...BASE, tipo: 'rescheduled' })!;
+
+    expect(t).toContain('alterada');
+    expect(t).toContain('10:00');
+  });
+
+  it('a confirmação e a criação dizem ambas que está confirmada', () => {
+    for (const tipo of ['booking_created', 'booking_confirmed']) {
+      expect(comporTextoDaNotificacao({ ...BASE, tipo }), tipo).toContain('confirmada');
+    }
+  });
 });

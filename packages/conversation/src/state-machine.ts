@@ -66,7 +66,10 @@ export type Necessidade =
       profissional: string | null;
     }
   | { tipo: 'criar_marcacao'; contexto: ContextoDaConversa }
+  /** Perguntar. Nada é cancelado por esta. */
   | { tipo: 'cancelar_marcacao' }
+  /** Cancelar mesmo. A pessoa já confirmou. */
+  | { tipo: 'executar_cancelamento' }
   | { tipo: 'chamar_humano' }
   | { tipo: 'consultar_marcacao' };
 
@@ -229,12 +232,46 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
     };
   }
 
+  /*
+   * O "sim" que faltava.
+   *
+   * O ciclo que se viu em produção: pedir para cancelar dava "Quer mesmo
+   * cancelar? Responda sim" — e o "sim" não era tratado por ninguém, caindo no
+   * "não percebi". Pior, a opção oferecida chamava-se "Sim, cancelar", que o
+   * extrator lia outra vez como intenção de cancelar: a pergunta repetia-se
+   * para sempre. O bot desenhava o botão que o punha a andar em círculo.
+   *
+   * Vem **antes** do `i.intent === 'cancelar'` de propósito: em
+   * `MANAGING_BOOKING`, uma mensagem que fale em cancelar é a resposta à
+   * pergunta anterior, não um pedido novo.
+   */
+  if (estado === 'MANAGING_BOOKING') {
+    if (i.intent === 'confirmar' || CONFIRMA_CANCELAMENTO.test(mensagem)) {
+      return {
+        estado: 'CLOSED',
+        contexto,
+        texto: 'Vou tratar disso.',
+        necessidade: { tipo: 'executar_cancelamento' },
+      };
+    }
+
+    // Qualquer outra coisa é recuar. Não se cancela por dúvida.
+    return {
+      estado: 'IDENTIFYING_INTENT',
+      contexto,
+      texto: 'Não cancelei nada. Quer marcar, alterar ou falar com alguém?',
+      opcoes: ['Marcar', 'Falar com alguém'],
+      necessidade: { tipo: 'nenhuma' },
+    };
+  }
+
   if (i.intent === 'cancelar') {
     return {
       estado: 'MANAGING_BOOKING',
       contexto,
       texto: 'Quer mesmo cancelar a marcação? Responda "sim" para confirmar.',
-      opcoes: ['Sim, cancelar', 'Não, manter'],
+      // Sem a palavra "cancelar" no botão: era ela que reiniciava a pergunta.
+      opcoes: ['Sim, confirmo', 'Não, manter'],
       necessidade: { tipo: 'cancelar_marcacao' },
     };
   }
@@ -504,3 +541,19 @@ function resumoDaMarcacao(contexto: ContextoDaConversa, agora: Date): string {
   const ditas = partes.filter(Boolean);
   return ditas.length > 0 ? `${ditas.join(' ')}.` : '';
 }
+
+/**
+ * As palavras que valem por um "sim" a cancelar.
+ *
+ * `String.raw` de proposito: escrever a fronteira de palavra numa string
+ * normal da o caractere de recuo, e a expressao passa a nunca corresponder —
+ * em silencio. Ja aconteceu duas vezes neste ficheiro.
+ *
+ * Inclui "cancelar" porque a pessoa costuma repetir a palavra ao confirmar, e
+ * aqui — dentro de `MANAGING_BOOKING` — isso e a resposta a pergunta, nao um
+ * pedido novo.
+ */
+const CONFIRMA_CANCELAMENTO = new RegExp(
+  String.raw`\b(sim|claro|confirmo|confirmar|cancelar|cancela|isso)\b`,
+  'i',
+);

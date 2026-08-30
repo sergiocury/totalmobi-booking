@@ -39,6 +39,12 @@ export function comporTextoDaNotificacao(d: DadosDaNotificacao): string | null {
 
   if (d.tipo === 'cancelled') {
     linhas.push(`${ola}a sua marcação de ${d.servico ?? 'serviço'} em ${quando} foi cancelada.`);
+  } else if (d.tipo === 'rescheduled') {
+    // Quem foi movido precisa da hora **nova** em destaque: é a única coisa que
+    // mudou, e é a que vai ficar no calendário dele.
+    linhas.push(`${ola}a sua marcação de ${d.servico ?? 'serviço'} foi alterada.`);
+    linhas.push('');
+    linhas.push(`*Nova hora:* ${quando}`);
   } else if (d.tipo === 'reminder') {
     linhas.push(`${ola}lembrete: ${d.servico ?? 'a sua marcação'} em ${quando}.`);
   } else {

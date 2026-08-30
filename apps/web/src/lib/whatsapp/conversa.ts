@@ -22,6 +22,11 @@ import {
 import { objecaoDoProfissional } from '@totalmobi/shared';
 
 import { carregarCatalogo } from '@/lib/marcacoes/catalogo';
+import {
+  cancelarDoCliente,
+  descreverMarcacao,
+  proximaMarcacao,
+} from '@/lib/marcacoes/proxima-marcacao';
 import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
@@ -375,6 +380,28 @@ async function decidir(
         ...(encontrado.data ? { data: encontrado.data } : {}),
       };
     }
+  }
+
+  /*
+   * Cancelar a sério.
+   *
+   * A necessidade `cancelar_marcacao` só **pergunta**; esta executa. A máquina
+   * de estados separa as duas porque cancelar por engano não se desfaz — e
+   * antes disto nenhuma das duas era cumprida, o que deixava a conversa a
+   * perguntar em círculo.
+   */
+  if (turno.necessidade.tipo === 'executar_cancelamento' && contexto.telefone) {
+    const r = await cancelarDoCliente(client, tenantId, contexto.telefone, agora);
+    texto = r.texto;
+    opcoes = undefined;
+  }
+
+  if (turno.necessidade.tipo === 'consultar_marcacao' && contexto.telefone) {
+    const m = await proximaMarcacao(client, tenantId, contexto.telefone, agora);
+    texto = m
+      ? `Tem ${descreverMarcacao(m)}.`
+      : 'Não encontrei nenhuma marcação futura no seu número.';
+    opcoes = undefined;
   }
 
   if (turno.necessidade.tipo === 'criar_marcacao') {
