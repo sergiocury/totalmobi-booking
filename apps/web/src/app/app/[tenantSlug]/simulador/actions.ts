@@ -2,6 +2,7 @@
 
 import {
   extrair,
+  frasearDias,
   frasearProcura,
   proximoTurno,
   type ContextoDaConversa,
@@ -12,7 +13,7 @@ import { requireRole } from '@/lib/auth/context';
 import { objecaoDoProfissional } from '@totalmobi/shared';
 
 import { carregarCatalogo } from '@/lib/marcacoes/catalogo';
-import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
+import { procurarDias, procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
  * O simulador de conversa.
@@ -104,6 +105,26 @@ export async function simular(
   // A única necessidade que o simulador cumpre é procurar horas — e cumpre-a
   // com o motor a sério. Criar e cancelar ficam por cumprir de propósito:
   // simular não pode mexer na agenda real.
+  if (turno.necessidade.tipo === 'procurar_dias') {
+    const escolhido = servicos.find((s) => s.name === contexto.servico);
+
+    if (escolhido) {
+      const hoje = agora.toISOString().slice(0, 10);
+      const r = await procurarDias(client, {
+        locationId: entrada.locationId,
+        serviceId: escolhido.id,
+        staffId: equipa.find((p) => p.full_name === contexto.profissional)?.id ?? null,
+        data: hoje,
+        preferencia: contexto,
+        agora,
+      });
+
+      const frase = frasearDias(r.dias, contexto.servico ?? 'o serviço', hoje);
+      texto = frase.texto;
+      opcoes = frase.opcoes;
+    }
+  }
+
   if (turno.necessidade.tipo === 'procurar_slots') {
     const servicoId = servicos.find((s) => s.name === turno.necessidade.tipo)?.id;
     const escolhido = servicos.find((s) => s.name === contexto.servico);

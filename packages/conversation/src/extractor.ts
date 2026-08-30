@@ -201,9 +201,7 @@ export function extrairData(texto: string, agora: Date): string | null {
    * dias a frente a partir dai, por isso "esta semana" e "a partir de hoje"
    * dao a mesma resposta. Ver `primeiroDiaComHoras`.
    */
-  if (
-    /\b(esta semana|nesta semana|qualquer dia|quando puder|o mais cedo|proximos dias)\b/.test(t)
-  ) {
+  if (DATA_VAGA.test(t)) {
     return iso(agora);
   }
 
@@ -450,4 +448,20 @@ export function escalar(intencao: IntencaoExtraida, mensagem: string): boolean {
     .split(' ')
     .filter((p) => p.length > 1);
   return palavras.length >= 3;
+}
+
+/**
+ * As expressões de dia que não nomeiam um dia.
+ *
+ * Resolvem para hoje — a procura varre daí para a frente — mas quem as usou
+ * **não escolheu** esse dia. É a diferença que decide se se pode dizer "nesse
+ * dia não tenho": a quem pediu "esta semana", isso soa a resposta a outra
+ * pergunta, porque o dia foi escolhido por nós.
+ */
+const DATA_VAGA = new RegExp(
+  String.raw`\b(esta semana|nesta semana|qualquer dia|quando puder|o mais cedo|proximos dias)\b`,
+);
+
+export function dataFoiVaga(texto: string): boolean {
+  return DATA_VAGA.test(normalizar(texto));
 }

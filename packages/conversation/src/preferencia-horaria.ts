@@ -43,6 +43,14 @@ export interface Preferencia {
   horaMinima?: string | null | undefined;
   /** `HH:MM`. "antes das 12" → `12:00`. */
   horaMaxima?: string | null | undefined;
+  /**
+   * A data veio de uma expressão vaga — "esta semana", "qualquer dia".
+   *
+   * Muda o que se pode dizer. "Nesse dia não tenho" pressupõe um dia nomeado;
+   * a quem pediu "esta semana" isso soa a resposta a outra pergunta, porque é
+   * exatamente o que é: o dia foi escolhido por nós, não por ela.
+   */
+  dataVaga?: boolean | null | undefined;
 }
 
 export interface HoraOferecida {

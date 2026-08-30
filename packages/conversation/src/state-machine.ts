@@ -1,7 +1,7 @@
 import type { CatalogoDoTenant } from './extractor';
 import { querRecomecar } from './ciclo-de-vida';
 import { nomeDoDia } from './procura-multi-dia';
-import { extrair } from './extractor';
+import { dataFoiVaga, extrair } from './extractor';
 import type { IntencaoExtraida } from './intent';
 
 /**
@@ -58,6 +58,13 @@ export interface ContextoDaConversa {
    * `reschedule_booking` em vez de criar uma segunda marcação.
    */
   marcacaoAMudar?: string | null;
+  /**
+   * A data veio de "esta semana" e não de um dia nomeado.
+   *
+   * Viaja no contexto porque a frase que anuncia as horas é escrita noutro
+   * sítio, e sem isto dizia "nesse dia não tenho" a quem nunca nomeou um dia.
+   */
+  dataVaga?: boolean | null;
   nome?: string | null;
   telefone?: string | null;
 }
@@ -75,6 +82,8 @@ export type Necessidade =
     }
   | { tipo: 'criar_marcacao'; contexto: ContextoDaConversa }
   /** Ir buscar a marcação da pessoa, para depois lhe mudar a hora. */
+  /** Que **dias** têm horas — não que horas tem um dia. */
+  | { tipo: 'procurar_dias'; servico: string }
   | { tipo: 'preparar_remarcacao' }
   /** Mudar mesmo a hora. A pessoa já escolheu e confirmou. */
   | { tipo: 'executar_remarcacao'; contexto: ContextoDaConversa }
@@ -107,7 +116,11 @@ export interface EntradaDoTurno {
 }
 
 /** Junta o que a mensagem trouxe ao que a conversa já sabia. */
-function fundir(contexto: ContextoDaConversa, i: IntencaoExtraida): ContextoDaConversa {
+function fundir(
+  contexto: ContextoDaConversa,
+  i: IntencaoExtraida,
+  mensagem: string,
+): ContextoDaConversa {
   return {
     ...contexto,
     // O que vem agora ganha ao que estava: quem corrige uma escolha espera que
@@ -119,6 +132,9 @@ function fundir(contexto: ContextoDaConversa, i: IntencaoExtraida): ContextoDaCo
     horaMinima: i.horaMinima ?? contexto.horaMinima ?? null,
     horaMaxima: i.horaMaxima ?? contexto.horaMaxima ?? null,
     marcacaoAMudar: contexto.marcacaoAMudar ?? null,
+    // Só se reavalia quando a mensagem trouxe uma data: uma resposta que não
+    // fala de dias não torna vago o dia que já tinha sido nomeado.
+    dataVaga: i.data ? dataFoiVaga(mensagem) : (contexto.dataVaga ?? false),
   };
 }
 
@@ -178,7 +194,7 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
    * Maria e um João, a colisão é quase certa.
    */
   const aPedirNome = estado === 'COLLECTING_CUSTOMER_DATA' && !entrada.contexto.nome;
-  const contexto = aPedirNome ? entrada.contexto : fundir(entrada.contexto, i);
+  const contexto = aPedirNome ? entrada.contexto : fundir(entrada.contexto, i, mensagem);
 
   /*
    * Recomeçar do zero.
@@ -360,6 +376,22 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
     }
 
     /*
+     * A pergunta sobre dias ganha ao "outro dia".
+     *
+     * As duas frases partilham palavras — "quando", "disponível" — e sem esta
+     * ordem "que dias tem disponível?" seria lido como "procura noutro dia" e
+     * devolvia horas outra vez.
+     */
+    if (contexto.servico && perguntaPorDias(mensagem)) {
+      return {
+        estado: 'SELECTING_DATE',
+        contexto: { ...contexto, data: null, slotsOferecidos: [] },
+        texto: 'Vou ver que dias tenho.',
+        necessidade: { tipo: 'procurar_dias', servico: contexto.servico },
+      };
+    }
+
+    /*
      * "Outro dia", "quando tem?", "o próximo que houver".
      *
      * Sem isto a conversa entrava em ciclo: a mensagem não trazia data nova, o
@@ -415,6 +447,23 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
         texto: 'Claro. Que serviço pretende?',
         opcoes: [...catalogo.servicos],
         necessidade: { tipo: 'listar_servicos' },
+      };
+    }
+
+    /*
+     * "Que dias tem disponível?"
+     *
+     * A pergunta é sobre dias e a resposta era sobre horas: cinco horas de um
+     * único dia. Quem pergunta que dias tem, tem restrições de dia — trabalha,
+     * viaja, só pode a partir de quinta — e recebia uma resposta que a obrigava
+     * a perguntar outra vez.
+     */
+    if (contexto.servico && perguntaPorDias(mensagem)) {
+      return {
+        estado: 'SELECTING_DATE',
+        contexto,
+        texto: 'Vou ver que dias tenho.',
+        necessidade: { tipo: 'procurar_dias', servico: contexto.servico },
       };
     }
 
@@ -579,3 +628,22 @@ const CONFIRMA_CANCELAMENTO = new RegExp(
   String.raw`\b(sim|claro|confirmo|confirmar|cancelar|cancela|isso)\b`,
   'i',
 );
+
+/**
+ * A pergunta é sobre dias?
+ *
+ * Estreito de propósito: tem de haver a palavra "dia" ou "dias" junto de uma
+ * interrogação. "Marcar num dia da próxima semana" não é uma pergunta sobre
+ * dias — é um pedido de marcação, e responder-lhe com uma lista de dias seria
+ * dar um passo atrás.
+ */
+const PERGUNTA_DIAS = new RegExp(
+  String.raw`\b(que|quais|quando)\b[^?]{0,30}\b(dias?|disponibilidade)\b`,
+  'i',
+);
+
+function perguntaPorDias(mensagem: string): boolean {
+  const t = mensagem.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  return PERGUNTA_DIAS.test(t);
+}

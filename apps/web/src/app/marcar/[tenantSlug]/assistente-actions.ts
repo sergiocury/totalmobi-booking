@@ -2,6 +2,7 @@
 
 import {
   extrair,
+  frasearDias,
   frasearProcura,
   proximoTurno,
   type ContextoDaConversa,
@@ -11,7 +12,7 @@ import { createAnonClient, getPublicTenantBySlug } from '@totalmobi/database';
 import { formatInZone, objecaoDoProfissional } from '@totalmobi/shared';
 
 import { carregarCatalogo } from '@/lib/marcacoes/catalogo';
-import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
+import { procurarDias, procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
  * O assistente na página pública.
@@ -158,6 +159,22 @@ export async function falarComAssistente(entrada: {
    * calhasse, que foi como um pedido "com o João" acabou com a Anaa.
    */
   const profissionalEscolhido = equipa.find((p) => p.full_name === contexto.profissional) ?? null;
+
+  if (turno.necessidade.tipo === 'procurar_dias' && servicoEscolhido) {
+    const hoje = agora.toISOString().slice(0, 10);
+    const r = await procurarDias(client, {
+      locationId: unidade.id,
+      serviceId: servicoEscolhido.id,
+      staffId: profissionalEscolhido?.id ?? null,
+      data: hoje,
+      preferencia: contexto,
+      agora,
+    });
+
+    const frase = frasearDias(r.dias, contexto.servico ?? 'o serviço', hoje);
+    texto = frase.texto;
+    opcoes = frase.opcoes;
+  }
 
   const objecao =
     servicoEscolhido && profissionalEscolhido

@@ -2,6 +2,7 @@ import 'server-only';
 
 import { getAvailableSlots } from '@totalmobi/availability';
 import {
+  diasComHoras,
   diasDoIntervalo,
   primeiroDiaComHoras,
   type HorasEncontradas,
@@ -118,4 +119,57 @@ export async function procurarHoras(
   }));
 
   return { ...primeiroDiaComHoras(porDia, entrada.preferencia), timezone, falhou: null };
+}
+
+/**
+ * Que dias têm horas — para quem pergunta por dias.
+ *
+ * Reaproveita o mesmo dataset de catorze dias: é uma ida à base de dados, e o
+ * motor corre por dia em memória, tal como na procura de horas. Ver
+ * `procurarHoras`.
+ */
+export async function procurarDias(
+  client: BookingClient,
+  entrada: {
+    locationId: string;
+    serviceId: string;
+    staffId?: string | null | undefined;
+    data: string;
+    preferencia: Preferencia;
+    agora: Date;
+  },
+): Promise<{
+  dias: { data: string; horas: { iso: string; hora: string }[] }[];
+  falhou: string | null;
+}> {
+  const dias = diasDoIntervalo(entrada.data, HORIZONTE_DE_DIAS);
+  const ultimo = dias[dias.length - 1];
+  if (!ultimo) return { dias: [], falhou: `data invalida: ${entrada.data}` };
+
+  const dataset = await loadAvailabilityDataset(client, {
+    locationId: entrada.locationId,
+    serviceId: entrada.serviceId,
+    from: entrada.data,
+    to: ultimo,
+    ...(entrada.staffId ? { staffId: entrada.staffId } : {}),
+  });
+
+  if (!dataset.ok) {
+    console.error('procurarDias: dataset falhou', dataset.error);
+    return { dias: [], falhou: dataset.error.message };
+  }
+
+  const timezone = dataset.value.timezone;
+
+  const porDia = dias.map((dia) => ({
+    data: dia,
+    horas: getAvailableSlots(toAvailabilityInput(dataset.value, dia, entrada.agora)).slots.map(
+      (s) => ({
+        iso: s.start.toISOString(),
+        hora: formatInZone(s.start, timezone, 'pt-PT', 'time'),
+      }),
+    ),
+  }));
+
+  return { dias: diasComHoras(porDia, entrada.preferencia), falhou: null };
 }

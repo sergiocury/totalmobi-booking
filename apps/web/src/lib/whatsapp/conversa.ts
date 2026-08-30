@@ -3,6 +3,7 @@ import 'server-only';
 import {
   deveRecomecar,
   extrair,
+  frasearDias,
   frasearProcura,
   proximoTurno,
   type ContextoDaConversa,
@@ -28,7 +29,7 @@ import {
   proximaMarcacao,
   remarcarDoCliente,
 } from '@/lib/marcacoes/proxima-marcacao';
-import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
+import { procurarDias, procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
 /**
  * O turno de conversa no WhatsApp.
@@ -371,6 +372,26 @@ async function decidir(
 
   // Quem a pessoa pediu. O extrator já resolveu o nome contra o catálogo.
   const profissional = equipa.find((p) => p.full_name === contexto.profissional) ?? null;
+
+  if (turno.necessidade.tipo === 'procurar_dias') {
+    const escolhido = servicos.find((s) => s.name === contexto.servico);
+
+    if (escolhido) {
+      const hoje = agora.toISOString().slice(0, 10);
+      const r = await procurarDias(client, {
+        locationId: unidade.id,
+        serviceId: escolhido.id,
+        staffId: profissional?.id ?? null,
+        data: hoje,
+        preferencia: contexto,
+        agora,
+      });
+
+      const frase = frasearDias(r.dias, contexto.servico ?? 'o serviço', hoje);
+      texto = frase.texto;
+      opcoes = frase.opcoes;
+    }
+  }
 
   if (turno.necessidade.tipo === 'procurar_slots') {
     const escolhido = servicos.find((s) => s.name === contexto.servico);

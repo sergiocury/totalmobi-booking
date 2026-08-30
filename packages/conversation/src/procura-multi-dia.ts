@@ -190,12 +190,83 @@ export function frasearProcura(
    */
   const prefixo = pedido
     ? `Não tenho nada ${pedido} ${encontrado.procurouAdiante ? 'nos próximos dias' : 'nesse dia'}. `
-    : encontrado.procurouAdiante
-      ? 'Nesse dia não tenho. '
+    : encontrado.procurouAdiante && !preferencia.dataVaga
+      ? // Só se diz "nesse dia" quando houve um dia nomeado. Ver `dataVaga`.
+        'Nesse dia não tenho. '
       : '';
 
   return {
     texto: `${prefixo}${quando}, para ${servico} tenho: ${lista}. Qual prefere?`,
     opcoes,
+  };
+}
+
+/** Quantos dias se oferecem de uma vez. Mais do que isto é uma lista, não uma resposta. */
+const DIAS_POR_RESPOSTA = 3;
+
+/**
+ * Os próximos dias com horas — para quem pergunta **que dias**, e não que horas.
+ *
+ * O DEFEITO QUE ISTO CORRIGE
+ *
+ * "Gostaria de agendar uma limpeza esta semana, que dias tem disponível?"
+ * recebia cinco horas de um único dia. A pergunta era sobre dias e a resposta
+ * era sobre horas — o assistente ouviu metade.
+ *
+ * Não é um detalhe de cortesia: quem pergunta que dias tem, tem restrições de
+ * dia (trabalha, viaja, só pode a partir de quinta). Dar-lhe horas de terça
+ * obriga-a a perguntar outra vez, e foi o que aconteceu.
+ */
+export function diasComHoras(
+  dias: readonly DiaComHoras[],
+  preferencia: Preferencia,
+  limite: number = DIAS_POR_RESPOSTA,
+): { data: string; horas: HoraOferecida[] }[] {
+  const encontrados: { data: string; horas: HoraOferecida[] }[] = [];
+
+  for (const dia of dias) {
+    if (encontrados.length >= limite) break;
+    if (dia.horas.length === 0) continue;
+
+    // A preferência manda também aqui: quem quer "de tarde" não quer um dia
+    // que só tem manhã.
+    const filtrado = filtrarPorPreferencia(dia.horas, preferencia);
+    if (filtrado.relaxado) continue;
+
+    encontrados.push({ data: dia.data, horas: filtrado.horas });
+  }
+
+  return encontrados;
+}
+
+/**
+ * Os dias em palavras.
+ *
+ * As opções são os dias, não as horas: a próxima mensagem da pessoa escolhe um
+ * dia, e só então se mostram horas. É o passo que faltava entre "que dias tem"
+ * e "qual prefere".
+ */
+export function frasearDias(
+  dias: readonly { data: string; horas: readonly HoraOferecida[] }[],
+  servico: string,
+  hoje: string,
+): { texto: string; opcoes: string[] } {
+  if (dias.length === 0) {
+    return {
+      texto:
+        'Não encontrei dias com horas livres nas próximas duas semanas. Quer que alguém lhe ligue?',
+      opcoes: ['Falar com alguém'],
+    };
+  }
+
+  const nomes = dias.map((d) => nomeDoDia(d.data, hoje));
+  const lista =
+    nomes.length === 1
+      ? nomes[0]!
+      : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+
+  return {
+    texto: `Para ${servico} tenho ${lista}. Que dia lhe dá jeito?`,
+    opcoes: nomes.map(comMaiuscula),
   };
 }
