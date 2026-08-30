@@ -142,7 +142,26 @@ function slotEscolhido(mensagem: string, contexto: ContextoDaConversa): string |
 export function proximoTurno(entrada: EntradaDoTurno): Resposta {
   const { estado, mensagem, catalogo, agora, nomeDaEmpresa } = entrada;
   const i = entrada.intencao ?? extrair(mensagem, catalogo, agora);
-  const contexto = fundir(entrada.contexto, i);
+
+  /*
+   * A resposta a "qual é o seu nome?" é um nome, não um pedido.
+   *
+   * O DEFEITO QUE ISTO CORRIGE
+   *
+   * O `fundir` corria sempre, e o extrator procura os nomes da equipa em
+   * qualquer mensagem. Um cliente chamado Sérgio, a responder ao pedido do
+   * nome numa clínica que tem um profissional chamado Sérgio, via o
+   * `profissional` do contexto passar de "Ana Martins" para "Sergio" — e a
+   * marcação, que até ali era da Ana, era criada na agenda dele.
+   *
+   * Aconteceu em produção a 30 de agosto de 2026, com esses nomes exatos.
+   *
+   * Não é um caso raro: os nomes dos clientes e os da equipa vêm do mesmo
+   * conjunto de nomes próprios portugueses. Numa clínica com uma Ana, uma
+   * Maria e um João, a colisão é quase certa.
+   */
+  const aPedirNome = estado === 'COLLECTING_CUSTOMER_DATA' && !entrada.contexto.nome;
+  const contexto = aPedirNome ? entrada.contexto : fundir(entrada.contexto, i);
 
   /*
    * Recomeçar do zero.
@@ -287,7 +306,7 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
       return {
         estado: 'CONFIRMING',
         contexto: comNome,
-        texto: `Obrigado, ${texto}. Confirmo a marcação?`,
+        texto: `Obrigado, ${texto}. ${resumoDaMarcacao(comNome)} Confirmo?`,
         opcoes: ['Confirmar', 'Cancelar'],
         necessidade: { tipo: 'nenhuma' },
       };
@@ -428,4 +447,33 @@ function querOutroDia(mensagem: string): boolean {
     .replace(new RegExp(String.raw`[\u0300-\u036f]`, 'g'), '');
 
   return PEDE_OUTRO_DIA.test(t);
+}
+
+/**
+ * O que se está prestes a marcar, em palavras.
+ *
+ * PORQUE É QUE ISTO PASSOU A EXISTIR
+ *
+ * A confirmação dizia só "Confirmo a marcação?". Quando uma marcação pedida
+ * para a Ana foi criada na agenda do Sergio, o cliente não tinha como reparar:
+ * a única coisa que lhe foi mostrada antes de confirmar era a palavra
+ * "marcação".
+ *
+ * A correção do defeito é noutro sítio — o nome do cliente já não sobrepõe o
+ * profissional. Mas uma confirmação que não diz o que confirma deixa qualquer
+ * erro futuro passar em silêncio, e o último momento em que alguém pode travar
+ * um engano é este.
+ *
+ * Só se diz o que se sabe. Um campo em falta desaparece da frase em vez de
+ * aparecer vazio.
+ */
+function resumoDaMarcacao(contexto: ContextoDaConversa): string {
+  const partes = [contexto.servico];
+
+  const hora = contexto.slotsOferecidos?.find((s) => s.iso === contexto.slotEscolhido)?.hora;
+  if (hora) partes.push(`às ${hora}`);
+  if (contexto.profissional) partes.push(`com ${contexto.profissional}`);
+
+  const ditas = partes.filter(Boolean);
+  return ditas.length > 0 ? `${ditas.join(' ')}.` : '';
 }
