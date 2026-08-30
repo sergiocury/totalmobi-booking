@@ -138,8 +138,27 @@ function fundir(
   };
 }
 
-/** A pessoa escolheu uma das horas oferecidas? */
-function slotEscolhido(mensagem: string, contexto: ContextoDaConversa): string | null {
+/**
+ * A pessoa escolheu uma das horas oferecidas?
+ *
+ * O `temData` existe por causa do português.
+ *
+ * **Três dos dias da semana são ordinais**: segunda, quarta e quinta. Com cinco
+ * horas na mesa, "Teria para quarta feira?" escolhia a quarta hora — 14:15 —
+ * e passava logo a pedir o nome. Aconteceu em produção a 30 de agosto de 2026:
+ * a pessoa pediu quarta-feira e ficou com uma marcação a uma hora que nunca viu.
+ *
+ * A ambiguidade não se resolve por palavras: "a quarta" é mesmo as duas coisas.
+ * Resolve-se pelo resto da frase — se dali sai uma data, a mensagem é sobre
+ * dias, e os ordinais não se aplicam.
+ *
+ * A hora explícita continua a ganhar sempre: "14:15" não é ambíguo.
+ */
+function slotEscolhido(
+  mensagem: string,
+  contexto: ContextoDaConversa,
+  temData: boolean,
+): string | null {
   const oferecidos = contexto.slotsOferecidos ?? [];
   if (oferecidos.length === 0) return null;
 
@@ -157,10 +176,13 @@ function slotEscolhido(mensagem: string, contexto: ContextoDaConversa): string |
     }
   }
 
-  // Pela ordem: "a primeira", "o segundo", "2"
-  const ordinais = ['primeir', 'segund', 'terceir', 'quart', 'quint'];
-  for (let i = 0; i < ordinais.length && i < oferecidos.length; i += 1) {
-    if (t.includes(ordinais[i]!)) return oferecidos[i]!.iso;
+  // Pela ordem: "a primeira", "o segundo", "2". Só quando a mensagem não fala
+  // de dias — ver a nota no topo.
+  if (!temData) {
+    const ordinais = ['primeir', 'segund', 'terceir', 'quart', 'quint'];
+    for (let i = 0; i < ordinais.length && i < oferecidos.length; i += 1) {
+      if (t.includes(ordinais[i]!)) return oferecidos[i]!.iso;
+    }
   }
 
   const numero = /^(\d)$/.exec(t);
@@ -337,7 +359,7 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
   // nova.
   // ---------------------------------------------------------------------------
   if (estado === 'SELECTING_SLOT') {
-    const escolhido = slotEscolhido(mensagem, contexto);
+    const escolhido = slotEscolhido(mensagem, contexto, Boolean(i.data));
 
     if (escolhido) {
       const comSlot = { ...contexto, slotEscolhido: escolhido };
