@@ -155,10 +155,20 @@ export async function responderNoWhatsApp(
 
   const enviado = await transporte(conta, waIdParaE164(mensagem.waId), turno.texto, turno.opcoes);
 
+  const passaAHumano = turno.humano || turno.estado === 'WAITING_HUMAN';
+
   await client
     .from('conversations')
     .update({
-      current_state: turno.estado,
+      current_state: passaAHumano ? 'WAITING_HUMAN' : turno.estado,
+      // Escrito, e não só lido: é isto que faz a promessa do colega ser
+      // verdadeira — o bot cala-se e a conversa fica à espera na caixa de
+      // entrada do painel.
+      ...(passaAHumano
+        ? {
+            bot_paused_until: new Date(Date.now() + HORAS_DE_SILENCIO * 3_600_000).toISOString(),
+          }
+        : {}),
       // O contexto é um objeto nosso e a coluna é `jsonb`. O cast atravessa
       // `unknown` porque as duas formas não se sobrepõem — é serialização, não
       // conversão de tipos, tal como no webhook do Stripe.
@@ -292,7 +302,24 @@ interface Turno {
   contexto: ContextoDaConversa;
   texto: string;
   opcoes?: string[] | undefined;
+  /**
+   * Passar a uma pessoa — e calar o bot até ela responder.
+   *
+   * Dizia-se "vou pedir a um colega" e não acontecia nada: o `bot_paused_until`
+   * era lido a cada mensagem e **nunca era escrito**. A conversa continuava a
+   * ser respondida por cima de uma promessa que ninguém tinha recebido.
+   */
+  humano?: boolean | undefined;
 }
+
+/**
+ * Quanto tempo o bot fica calado à espera de uma pessoa.
+ *
+ * Doze horas cobrem um dia de trabalho sem prender a conversa para sempre: se
+ * ninguém responder, o bot volta a poder ajudar em vez de deixar o cliente a
+ * falar sozinho.
+ */
+const HORAS_DE_SILENCIO = 12;
 
 async function decidir(
   client: BookingClient,
@@ -395,6 +422,7 @@ async function decidir(
     const r = await cancelarDoCliente(client, tenantId, contexto.telefone, agora);
     texto = r.texto;
     opcoes = undefined;
+    if (r.humano) return { estado: 'WAITING_HUMAN', contexto, texto, humano: true };
   }
 
   /*
@@ -439,7 +467,9 @@ async function decidir(
     if (!r.ok) {
       // Falhar não avança o estado: a pessoa continua a poder escolher outra
       // hora, e a marcação antiga fica intacta.
-      return { estado: 'SELECTING_SLOT', contexto, texto, opcoes };
+      return r.humano
+        ? { estado: 'WAITING_HUMAN', contexto, texto, humano: true }
+        : { estado: 'SELECTING_SLOT', contexto, texto, opcoes };
     }
 
     // Mudou: o id deixa de fazer sentido no contexto, e deixá-lo faria a

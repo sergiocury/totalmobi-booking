@@ -14,5 +14,6 @@ export * from './domain/preparacao';
 export * from './domain/horario-simples';
 export * from './domain/catalogo';
 export * from './domain/arrasto';
+export * from './domain/recusas';
 export * from './design/contrast';
 export * from './constants';

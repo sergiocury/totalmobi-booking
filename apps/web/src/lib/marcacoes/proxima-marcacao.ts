@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { cancelBooking, rescheduleBooking, type BookingClient } from '@totalmobi/database';
-import { formatInZone } from '@totalmobi/shared';
+import { formatInZone, motivoDaRecusa, regraDeAntecedencia } from '@totalmobi/shared';
 
 /**
  * A marcação de quem está a falar connosco.
@@ -99,7 +99,7 @@ export async function cancelarDoCliente(
   tenantId: string,
   telefone: string,
   agora: Date,
-): Promise<{ texto: string }> {
+): Promise<{ texto: string; humano?: boolean }> {
   const marcacao = await proximaMarcacao(client, tenantId, telefone, agora);
 
   if (!marcacao) {
@@ -112,10 +112,21 @@ export async function cancelarDoCliente(
   });
 
   if (!r.ok) {
-    // A política da empresa pode recusar — prazo mínimo, por exemplo. Nesse
-    // caso quem decide é uma pessoa, não o bot.
+    /*
+     * A recusa costuma ser uma regra da empresa, não uma avaria — e escondê-la
+     * faz o cliente pensar que o sistema falhou. Ver `motivoDaRecusa`.
+     */
+    const regra = regraDeAntecedencia(r.error.code, r.error.message);
+    if (regra) {
+      return { texto: `${regra}. Vou passar a um colega, que trata disto consigo.`, humano: true };
+    }
+
+    const motivo = motivoDaRecusa(r.error.code);
     return {
-      texto: `Não consegui cancelar ${descreverMarcacao(marcacao)}. Vou pedir a um colega que trate disso.`,
+      texto: motivo
+        ? `Não cancelei: ${motivo}. Quer que um colega trate disto?`
+        : 'Não consegui cancelar. Vou passar a um colega.',
+      humano: true,
     };
   }
 
@@ -140,7 +151,7 @@ export async function remarcarDoCliente(
   client: BookingClient,
   bookingId: string,
   novaHora: string,
-): Promise<{ ok: boolean; texto: string }> {
+): Promise<{ ok: boolean; texto: string; humano?: boolean }> {
   const r = await rescheduleBooking(client, bookingId, new Date(novaHora), {
     reason: 'remarcado pelo cliente no WhatsApp',
     byCustomer: true,
@@ -148,15 +159,26 @@ export async function remarcarDoCliente(
 
   if (!r.ok) {
     if (r.error.code === 'SLOT_TAKEN') {
+      // Esta a pessoa resolve sozinha: escolhe outra hora.
+      return { ok: false, texto: 'Essa hora acabou de ser ocupada. Quer que veja outras?' };
+    }
+
+    const regra = regraDeAntecedencia(r.error.code, r.error.message);
+    if (regra) {
       return {
         ok: false,
-        texto: 'Essa hora acabou de ser ocupada. Quer que veja outras?',
+        texto: `${regra}. Vou passar a um colega, que trata disto consigo.`,
+        humano: true,
       };
     }
 
+    const motivo = motivoDaRecusa(r.error.code);
     return {
       ok: false,
-      texto: 'Não consegui mudar a hora. Vou pedir a um colega que trate disso.',
+      texto: motivo
+        ? `Não mudei: ${motivo}.`
+        : 'Não consegui mudar a hora. Vou passar a um colega.',
+      humano: !motivo,
     };
   }
 
