@@ -34,10 +34,20 @@ const CONFIRMADOS: ReadonlySet<string> = new Set([
 
 export function estadoVisual(status: string, ativo: boolean): EstadoVisual {
   // Cancelada, falta, remarcada: já não ocupa a agenda.
+  /*
+   * Cancelada, falta, ou substituída por uma remarcação: já não ocupa a agenda.
+   *
+   * O tracejado sozinho não bastou. Quem viu uma "Limpeza dentária" a
+   * tracejado num dia leu-a como uma marcação a sério, e perguntou porque é que
+   * havia duas ao mesmo tempo — a linha morta de uma remarcação fica no dia
+   * antigo, e a agenda mostra-a.
+   *
+   * O `✕` diz por palavras o que o traço só sugeria.
+   */
   if (!ativo) {
     return {
       classes: 'border-dashed border-(--line) bg-(--surface-sunken) opacity-60',
-      marca: '',
+      marca: '✕ ',
       etiqueta: 'sem efeito',
     };
   }

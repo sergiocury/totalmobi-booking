@@ -104,9 +104,21 @@ describe('comporTextoDaNotificacao', () => {
     expect(t).toContain('10:00');
   });
 
-  it('a confirmação e a criação dizem ambas que está confirmada', () => {
-    for (const tipo of ['booking_created', 'booking_confirmed']) {
-      expect(comporTextoDaNotificacao({ ...BASE, tipo }), tipo).toContain('confirmada');
-    }
+  /*
+   * Uma marcação nasce sempre `pending`. Dizer "está confirmada" ao criá-la é
+   * uma afirmação que nunca é verdadeira nesse momento — e quem a lia ia ao
+   * painel e via a marcação por confirmar.
+   */
+  it('criar diz que ficou marcada; confirmar é que diz confirmada', () => {
+    expect(comporTextoDaNotificacao({ ...BASE, tipo: 'booking_created' })).toContain(
+      'ficou marcada',
+    );
+    expect(comporTextoDaNotificacao({ ...BASE, tipo: 'booking_created' })).not.toContain(
+      'confirmada',
+    );
+
+    expect(comporTextoDaNotificacao({ ...BASE, tipo: 'booking_confirmed' })).toContain(
+      'está confirmada',
+    );
   });
 });

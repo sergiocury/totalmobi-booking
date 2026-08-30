@@ -48,7 +48,20 @@ export function comporTextoDaNotificacao(d: DadosDaNotificacao): string | null {
   } else if (d.tipo === 'reminder') {
     linhas.push(`${ola}lembrete: ${d.servico ?? 'a sua marcação'} em ${quando}.`);
   } else {
-    linhas.push(`${ola}a sua marcação está confirmada.`);
+    /*
+     * "Marcada" não é "confirmada".
+     *
+     * Uma marcação nasce sempre `pending` — o `create_booking_atomic` nunca cria
+     * nada como `confirmed`. A mensagem de criação dizia "a sua marcação está
+     * confirmada", o que **nunca** era verdade nesse momento: quem a recebia ia
+     * ao painel e via a marcação por confirmar.
+     *
+     * "Confirmada" fica reservado para quando a empresa confirma mesmo — que é
+     * o `booking_confirmed`, e é a única altura em que a palavra é verdadeira.
+     */
+    const estado = d.tipo === 'booking_confirmed' ? 'está confirmada' : 'ficou marcada';
+
+    linhas.push(`${ola}a sua marcação ${estado}.`);
     linhas.push('');
     linhas.push(`*${d.servico ?? 'Marcação'}*`);
     linhas.push(quando);
