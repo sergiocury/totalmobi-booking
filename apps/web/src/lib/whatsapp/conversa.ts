@@ -26,6 +26,7 @@ import {
   cancelarDoCliente,
   descreverMarcacao,
   proximaMarcacao,
+  remarcarDoCliente,
 } from '@/lib/marcacoes/proxima-marcacao';
 import { procurarHoras } from '@/lib/marcacoes/procurar-horas';
 
@@ -394,6 +395,56 @@ async function decidir(
     const r = await cancelarDoCliente(client, tenantId, contexto.telefone, agora);
     texto = r.texto;
     opcoes = undefined;
+  }
+
+  /*
+   * Preparar a remarcacao.
+   *
+   * A maquina de estados nao sabe o telefone de quem esta a falar — so o
+   * adaptador sabe. Aqui vai-se buscar a marcacao, guarda-se o seu id no
+   * contexto, e o servico dela passa a ser o servico da conversa: quem remarca
+   * nao quer escolher o servico outra vez.
+   */
+  if (turno.necessidade.tipo === 'preparar_remarcacao' && contexto.telefone) {
+    const m = await proximaMarcacao(client, tenantId, contexto.telefone, agora);
+
+    if (!m) {
+      texto = 'Não encontrei nenhuma marcação futura no seu número. Quer marcar uma?';
+      opcoes = ['Marcar'];
+    } else {
+      contexto = {
+        ...contexto,
+        marcacaoAMudar: m.id,
+        servico: m.servico ?? contexto.servico ?? null,
+        // A data antiga não serve de ponto de partida: quem remarca quer outro
+        // dia, e mantê-la faria a procura começar no dia que já não lhe serve.
+        data: null,
+        slotsOferecidos: [],
+        slotEscolhido: null,
+      };
+      texto = `Tem ${descreverMarcacao(m)}. Para que dia quer mudar?`;
+      opcoes = ['Hoje', 'Amanhã', 'Esta semana'];
+    }
+  }
+
+  if (turno.necessidade.tipo === 'executar_remarcacao' && contexto.marcacaoAMudar) {
+    const r = await remarcarDoCliente(
+      client,
+      contexto.marcacaoAMudar,
+      contexto.slotEscolhido ?? '',
+    );
+    texto = r.texto;
+    opcoes = undefined;
+
+    if (!r.ok) {
+      // Falhar não avança o estado: a pessoa continua a poder escolher outra
+      // hora, e a marcação antiga fica intacta.
+      return { estado: 'SELECTING_SLOT', contexto, texto, opcoes };
+    }
+
+    // Mudou: o id deixa de fazer sentido no contexto, e deixá-lo faria a
+    // próxima marcação desta conversa mudar esta em vez de criar uma nova.
+    contexto = { ...contexto, marcacaoAMudar: null };
   }
 
   if (turno.necessidade.tipo === 'consultar_marcacao' && contexto.telefone) {

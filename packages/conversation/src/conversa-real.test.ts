@@ -125,8 +125,9 @@ describe('remarcar não pode virar uma marcação nova', () => {
   it('reconhece o verbo sozinho', () => {
     const r = turno('Poderia remarcar para mais tarde?', { servico: 'implante' }, 'BOOKED');
 
-    expect(r.necessidade.tipo).toBe('chamar_humano');
-    expect(r.estado).toBe('WAITING_HUMAN');
+    // Já não é uma marcação nova nem um pedido de socorro: vai buscar a que
+    // existe, para lhe mudar a hora.
+    expect(r.necessidade.tipo).toBe('preparar_remarcacao');
   });
 
   it('não pergunta o serviço — isso é o caminho de marcar', () => {
@@ -138,6 +139,6 @@ describe('remarcar não pode virar uma marcação nova', () => {
   it('marcar de raiz continua a funcionar', () => {
     const r = turno('quero marcar um implante', {}, 'NEW');
 
-    expect(r.estado).not.toBe('WAITING_HUMAN');
+    expect(r.necessidade.tipo).not.toBe('preparar_remarcacao');
   });
 });

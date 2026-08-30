@@ -50,6 +50,14 @@ export interface ContextoDaConversa {
   /** Slots oferecidos, vindos **do motor**. Nunca inventados aqui. */
   slotsOferecidos?: { iso: string; hora: string }[];
   slotEscolhido?: string | null;
+  /**
+   * A marcação que está a ser mudada de hora.
+   *
+   * Presente = isto é uma remarcação, não uma marcação nova. É o que faz o
+   * mesmo caminho — escolher dia, escolher hora, confirmar — acabar num
+   * `reschedule_booking` em vez de criar uma segunda marcação.
+   */
+  marcacaoAMudar?: string | null;
   nome?: string | null;
   telefone?: string | null;
 }
@@ -66,6 +74,10 @@ export type Necessidade =
       profissional: string | null;
     }
   | { tipo: 'criar_marcacao'; contexto: ContextoDaConversa }
+  /** Ir buscar a marcação da pessoa, para depois lhe mudar a hora. */
+  | { tipo: 'preparar_remarcacao' }
+  /** Mudar mesmo a hora. A pessoa já escolheu e confirmou. */
+  | { tipo: 'executar_remarcacao'; contexto: ContextoDaConversa }
   /** Perguntar. Nada é cancelado por esta. */
   | { tipo: 'cancelar_marcacao' }
   /** Cancelar mesmo. A pessoa já confirmou. */
@@ -106,6 +118,7 @@ function fundir(contexto: ContextoDaConversa, i: IntencaoExtraida): ContextoDaCo
     periodo: i.periodo ?? contexto.periodo ?? null,
     horaMinima: i.horaMinima ?? contexto.horaMinima ?? null,
     horaMaxima: i.horaMaxima ?? contexto.horaMaxima ?? null,
+    marcacaoAMudar: contexto.marcacaoAMudar ?? null,
   };
 }
 
@@ -211,24 +224,22 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
   }
 
   /*
-   * Remarcar ainda nao se faz por conversa.
+   * Remarcar.
    *
-   * O caminho de remarcacao — encontrar a marcacao da pessoa, oferecer horas
-   * novas, chamar o `reschedule_booking` — nao esta construido neste canal.
-   * Ate estar, o que **nao** pode acontecer e cair no caminho de marcar: foi
-   * assim que um pedido de remarcacao criou uma segunda marcacao e deixou o
-   * cliente com duas.
+   * Segue o mesmo caminho de marcar — escolher dia, escolher hora, confirmar —
+   * e acaba num `reschedule_booking` em vez de criar uma segunda marcação. É a
+   * distinção que faltava: um pedido de remarcação caía no caminho de marcar e
+   * o cliente ficava com duas.
    *
-   * Passa-se a uma pessoa. A conversa fica visivel na caixa de entrada do
-   * painel, e o bot cala-se — que e melhor do que agir errado depressa.
+   * O adaptador é que vai buscar a marcação: só ele sabe o telefone de quem
+   * está a falar. Aqui só se diz que é preciso.
    */
-  if (i.intent === 'remarcar') {
+  if (i.intent === 'remarcar' && !contexto.marcacaoAMudar) {
     return {
-      estado: 'WAITING_HUMAN',
+      estado: 'SELECTING_DATE',
       contexto,
-      texto:
-        'Para remarcar preciso de falar com a equipa — nao quero criar uma marcacao a mais. Ja avisei alguem, que lhe responde por aqui.',
-      necessidade: { tipo: 'chamar_humano' },
+      texto: 'Vou ver a sua marcação.',
+      necessidade: { tipo: 'preparar_remarcacao' },
     };
   }
 
@@ -316,7 +327,14 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
       const comSlot = { ...contexto, slotEscolhido: escolhido };
       const hora = contexto.slotsOferecidos?.find((s) => s.iso === escolhido)?.hora ?? '';
 
-      if (!comSlot.nome) {
+      /*
+       * Quem remarca já se identificou.
+       *
+       * A marcação é dela — encontrámo-la pelo número de telemóvel. Perguntar
+       * "qual é o seu nome?" a quem só quer mudar a hora é o bot a não saber
+       * com quem está a falar.
+       */
+      if (!comSlot.nome && !comSlot.marcacaoAMudar) {
         return {
           estado: 'COLLECTING_CUSTOMER_DATA',
           contexto: comSlot,
@@ -328,7 +346,9 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
       return {
         estado: 'CONFIRMING',
         contexto: comSlot,
-        texto: `Confirmo ${comSlot.servico} às ${hora}?`,
+        texto: comSlot.marcacaoAMudar
+          ? `Mudo ${comSlot.servico} para as ${hora}?`
+          : `Confirmo ${comSlot.servico} às ${hora}?`,
         opcoes: ['Confirmar', 'Escolher outra hora'],
         necessidade: { tipo: 'nenhuma' },
       };
@@ -378,7 +398,9 @@ export function proximoTurno(entrada: EntradaDoTurno): Resposta {
       estado: 'BOOKED',
       contexto,
       texto: 'A marcar…',
-      necessidade: { tipo: 'criar_marcacao', contexto },
+      necessidade: contexto.marcacaoAMudar
+        ? { tipo: 'executar_remarcacao', contexto }
+        : { tipo: 'criar_marcacao', contexto },
     };
   }
 

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { cancelBooking, type BookingClient } from '@totalmobi/database';
+import { cancelBooking, rescheduleBooking, type BookingClient } from '@totalmobi/database';
 import { formatInZone } from '@totalmobi/shared';
 
 /**
@@ -122,4 +122,43 @@ export async function cancelarDoCliente(
   return {
     texto: `Cancelei ${descreverMarcacao(marcacao)}. Se precisar, é só dizer para marcar outra.`,
   };
+}
+
+/**
+ * Mudar a hora da marcação que a pessoa já tem.
+ *
+ * A hora nova vem de `slotEscolhido`, que só pode ser uma das que **nós**
+ * oferecemos — o `proximoTurno` recusa qualquer outra. Mesmo assim passa pela
+ * `reschedule_booking`, que revalida contra a constraint de exclusão: entre
+ * oferecer a hora e confirmá-la passam segundos, e nesses segundos alguém pode
+ * ter marcado pela página pública.
+ *
+ * O aviso ao cliente não sai daqui: o gatilho planeia `rescheduled` quando o
+ * `start_at` muda. Ver a migration 0042.
+ */
+export async function remarcarDoCliente(
+  client: BookingClient,
+  bookingId: string,
+  novaHora: string,
+): Promise<{ ok: boolean; texto: string }> {
+  const r = await rescheduleBooking(client, bookingId, new Date(novaHora), {
+    reason: 'remarcado pelo cliente no WhatsApp',
+    byCustomer: true,
+  });
+
+  if (!r.ok) {
+    if (r.error.code === 'SLOT_TAKEN') {
+      return {
+        ok: false,
+        texto: 'Essa hora acabou de ser ocupada. Quer que veja outras?',
+      };
+    }
+
+    return {
+      ok: false,
+      texto: 'Não consegui mudar a hora. Vou pedir a um colega que trate disso.',
+    };
+  }
+
+  return { ok: true, texto: 'Está mudado. Vai receber a confirmação por aqui.' };
 }
