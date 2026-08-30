@@ -280,6 +280,32 @@ export function extrairLimitesDeHora(texto: string): {
     }
   }
 
+  /*
+   * Uma hora solta: "quarta feira 14:30", "amanhã 9h".
+   *
+   * O "às" não vem sempre. "Marcar com a Ana na quarta feira 14:30?" é uma
+   * forma perfeitamente normal de pedir, e a hora era deitada fora: a procura
+   * devolvia as primeiras horas do dia — 09:00, 09:15 — a quem tinha dito
+   * 14:30. Aconteceu em produção a 30 de agosto de 2026.
+   *
+   * **Tem de parecer uma hora.** Exige-se `:` ou `h` entre os números, senão
+   * "dia 2" viraria as duas da manhã e "marcar para 4 pessoas" as quatro.
+   */
+  if (!minima && !maxima) {
+    const solta = /\b(\d{1,2}):(\d{2})\b/.exec(t) ?? /\b(\d{1,2})h(\d{2})?\b/.exec(t);
+
+    if (solta) {
+      const h = Number(solta[1]);
+      const m = Number(solta[2] ?? 0);
+
+      // Uma hora impossível não é uma hora: é um número que calhou ali.
+      if (h <= 23 && m <= 59) {
+        minima = hora(String(h), solta[2]);
+        maxima = minima;
+      }
+    }
+  }
+
   return { minima, maxima };
 }
 
