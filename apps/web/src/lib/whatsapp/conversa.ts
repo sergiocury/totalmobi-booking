@@ -13,6 +13,7 @@ import {
   decifrar,
   lerChave,
   escolherFormato,
+  textoUtilizavel,
   MetaCloudApiProvider,
   waIdParaE164,
   type MensagemRecebida,
@@ -91,11 +92,16 @@ export async function responderNoWhatsApp(
   mensagem: MensagemRecebida,
   transporte: Transporte = enviar,
 ): Promise<ResultadoDoTurno> {
-  // Só texto. Áudio, imagens e localizações chegam ao webhook e ficam
-  // registadas, mas o bot não finge que as percebeu — responder "não percebi" a
-  // uma fotografia é melhor do que responder como se fosse texto vazio.
-  if (mensagem.tipo !== 'text' || !mensagem.texto?.trim()) {
-    return { respondeu: false, motivo: 'mensagem não é texto' };
+  /*
+   * Texto escrito ou um botão tocado — as duas coisas servem.
+   *
+   * Isto era `mensagem.tipo !== 'text'`, e um toque chega como `interactive`.
+   * Cada escolha de hora era descartada em silêncio: a conversa parava a meio
+   * sem erro nenhum. Ver a nota em `textoUtilizavel`.
+   */
+  const texto = textoUtilizavel(mensagem);
+  if (!texto) {
+    return { respondeu: false, motivo: `sem texto (${mensagem.tipo})` };
   }
 
   const { data: conta } = await client
@@ -113,11 +119,11 @@ export async function responderNoWhatsApp(
 
   // Regra 1. Um humano assumiu: o bot não fala por cima.
   if (conversa.bot_paused_until && new Date(conversa.bot_paused_until) > new Date()) {
-    await gravarMensagem(client, conversa.id, 'inbound', mensagem.texto, mensagem);
+    await gravarMensagem(client, conversa.id, 'inbound', texto, mensagem);
     return { respondeu: false, motivo: 'bot em pausa — humano a atender' };
   }
 
-  await gravarMensagem(client, conversa.id, 'inbound', mensagem.texto, mensagem);
+  await gravarMensagem(client, conversa.id, 'inbound', texto, mensagem);
 
   /*
    * O telefone entra no contexto sem ser pedido.
@@ -138,7 +144,7 @@ export async function responderNoWhatsApp(
     },
   };
 
-  const turno = await decidir(client, tenantId, conversaComTelefone, mensagem.texto);
+  const turno = await decidir(client, tenantId, conversaComTelefone, texto);
   if (!turno) return { respondeu: false, motivo: 'empresa sem catálogo utilizável' };
 
   const enviado = await transporte(conta, waIdParaE164(mensagem.waId), turno.texto, turno.opcoes);

@@ -11,7 +11,13 @@ import {
   minutosAteFecharJanela,
   waIdParaE164,
 } from './provider';
-import { assinaturaValida, idDoEvento, interpretarEvento, responderDesafio } from './webhook';
+import {
+  assinaturaValida,
+  idDoEvento,
+  interpretarEvento,
+  responderDesafio,
+  textoUtilizavel,
+} from './webhook';
 
 /**
  * O que se pode provar sem credenciais da Meta.
@@ -411,5 +417,46 @@ describe('interpretarEvento com respostas interativas', () => {
     );
 
     expect(evento.mensagens[0]?.texto).toBe('quero marcar');
+  });
+});
+
+/*
+ * A porta que descartava os toques.
+ *
+ * Quando as opcoes passaram a ser botoes, o leitor aprendeu a tirar o titulo de
+ * `list_reply` — mas quem responde continuou com `if (tipo !== 'text')`. Em
+ * producao, a 30 de agosto de 2026, o evento chegou ao webhook, ficou guardado
+ * com `list_reply: { title: "14:45" }`, e nunca foi processado: a conversa
+ * parou a meio, sem erro nenhum.
+ *
+ * Ficou pior do que antes dos botoes, quando as pessoas escreviam a hora.
+ */
+describe('textoUtilizavel', () => {
+  it('aceita o titulo de um botao ou de uma lista', () => {
+    expect(textoUtilizavel({ tipo: 'interactive', texto: '14:45' })).toBe('14:45');
+  });
+
+  it('aceita texto escrito', () => {
+    expect(textoUtilizavel({ tipo: 'text', texto: 'quero marcar' })).toBe('quero marcar');
+  });
+
+  it('apara os espacos', () => {
+    expect(textoUtilizavel({ tipo: 'text', texto: '  14:45  ' })).toBe('14:45');
+  });
+
+  it('recusa o que nao tem texto nenhum', () => {
+    expect(textoUtilizavel({ tipo: 'text', texto: '   ' })).toBeNull();
+    expect(textoUtilizavel({ tipo: 'text' })).toBeNull();
+    expect(textoUtilizavel({ tipo: 'interactive' })).toBeNull();
+  });
+
+  /*
+   * Continua a recusar o resto. Uma fotografia registada e nao respondida e
+   * melhor do que uma fotografia respondida como se fosse texto vazio.
+   */
+  it('recusa audio, imagens e documentos', () => {
+    for (const tipo of ['audio', 'image', 'document', 'location', 'sticker']) {
+      expect(textoUtilizavel({ tipo, texto: 'legenda' }), tipo).toBeNull();
+    }
   });
 });

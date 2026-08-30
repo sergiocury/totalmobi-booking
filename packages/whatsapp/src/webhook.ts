@@ -92,6 +92,38 @@ export interface MensagemRecebida {
   readonly phoneNumberId: string;
 }
 
+/**
+ * O texto que se pode responder — ou `null`.
+ *
+ * O DEFEITO QUE ISTO CORRIGE
+ *
+ * Quando as opções passaram a ser botões, o leitor aprendeu a tirar o título
+ * de `button_reply`/`list_reply`. Mas quem responde tinha uma porta escrita
+ * antes disso: `if (mensagem.tipo !== 'text')`. Um toque chega com
+ * `tipo: 'interactive'`, e era **descartado em silêncio** — o cliente escolhia
+ * uma hora e a conversa parava, sem erro, sem registo, sem nada.
+ *
+ * Pior do que não ter botões: antes as pessoas escreviam "14:45" e funcionava.
+ *
+ * A regra vive aqui, e não junto a quem responde, porque em `apps/web` os
+ * testes deste repositório não chegam — e esta é precisamente a condição que
+ * ninguém repara que mudou.
+ *
+ * Áudio, imagens e documentos continuam a devolver `null`. Ficam registados,
+ * mas o assistente não finge que os percebeu.
+ */
+const TIPOS_COM_TEXTO: ReadonlySet<string> = new Set(['text', 'interactive']);
+
+export function textoUtilizavel(mensagem: {
+  tipo: string;
+  texto?: string | undefined;
+}): string | null {
+  if (!TIPOS_COM_TEXTO.has(mensagem.tipo)) return null;
+
+  const limpo = mensagem.texto?.trim();
+  return limpo ? limpo : null;
+}
+
 export interface EstadoDeEntrega {
   readonly providerMessageId: string;
   readonly estado: string;
